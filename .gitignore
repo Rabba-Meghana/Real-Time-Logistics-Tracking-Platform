@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/stats.html
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# k6 results
+k6_results.json
+
+# Misc
+*.tmp
+*.bak
+.previous_tag
+/tmp/
