@@ -26,21 +26,21 @@ const App: Component = () => {
     localStorage.setItem('theme', next);
   };
 
-  return (
-    <Router>
-      <div class="app-layout">
-        <Sidebar theme={theme()} onThemeToggle={toggleTheme} />
-        <div class="main-content">
-          <Route path="/" component={Dashboard} />
-          <Route path="/map" component={LiveMap} />
-          <Route path="/voyages" component={Voyages} />
-          <Route path="/invoices" component={Invoices} />
-          <Route path="/anomalies" component={Anomalies} />
-          <Route path="/fleet" component={Fleet} />
-        </div>
+  const AppShell = () => (
+    <div class="app-layout">
+      <Sidebar theme={theme()} onThemeToggle={toggleTheme} />
+      <div class="main-content">
+        <Route path="/" component={Dashboard} />
+        <Route path="/map" component={LiveMap} />
+        <Route path="/voyages" component={Voyages} />
+        <Route path="/invoices" component={Invoices} />
+        <Route path="/anomalies" component={Anomalies} />
+        <Route path="/fleet" component={Fleet} />
       </div>
-    </Router>
+    </div>
   );
+
+  return <Router>{AppShell}</Router>;
 };
 
 export default App;
