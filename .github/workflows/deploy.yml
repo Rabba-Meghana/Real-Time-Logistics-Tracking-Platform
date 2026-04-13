@@ -54,7 +54,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          cd backend
+          cd $GITHUB_WORKSPACE/backend
           pip install -r requirements.txt
           pip install pytest pytest-django pytest-cov python-dateutil
 
@@ -76,9 +76,8 @@ jobs:
           AWS_STORAGE_BUCKET_NAME: ""
           AWS_S3_REGION_NAME: us-east-1
           DATADOG_API_KEY: ""
-          PYTHONPATH: /home/runner/work/Real-Time-Logistics-Tracking-Platform/Real-Time-Logistics-Tracking-Platform/backend
         run: |
-          cd backend
+          cd $GITHUB_WORKSPACE/backend
           python manage.py migrate --noinput
           pytest --tb=short -q
 
