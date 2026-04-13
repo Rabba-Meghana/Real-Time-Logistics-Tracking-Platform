@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount } from 'solid-js';
+import { createSignal, onMount } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -8,9 +8,16 @@ import Invoices from './pages/Invoices';
 import { Anomalies, Fleet } from './pages/Anomalies';
 import './styles/global.css';
 
-const App: Component = () => {
-  const [theme, setTheme] = createSignal<'light' | 'dark'>('light');
+const [theme, setTheme] = createSignal<'light' | 'dark'>('light');
 
+const toggleTheme = () => {
+  const next = theme() === 'light' ? 'dark' : 'light';
+  setTheme(next);
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+};
+
+const Layout = (props: { children?: any }) => {
   onMount(() => {
     const saved = localStorage.getItem('theme') as 'light' | 'dark' | null;
     if (saved) {
@@ -18,29 +25,25 @@ const App: Component = () => {
       document.documentElement.setAttribute('data-theme', saved);
     }
   });
-
-  const toggleTheme = () => {
-    const next = theme() === 'light' ? 'dark' : 'light';
-    setTheme(next);
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-  };
-
-  const AppShell = () => (
+  return (
     <div class="app-layout">
       <Sidebar theme={theme()} onThemeToggle={toggleTheme} />
       <div class="main-content">
-        <Route path="/" component={Dashboard} />
-        <Route path="/map" component={LiveMap} />
-        <Route path="/voyages" component={Voyages} />
-        <Route path="/invoices" component={Invoices} />
-        <Route path="/anomalies" component={Anomalies} />
-        <Route path="/fleet" component={Fleet} />
+        {props.children}
       </div>
     </div>
   );
-
-  return <Router>{AppShell}</Router>;
 };
+
+const App = () => (
+  <Router root={Layout}>
+    <Route path="/" component={Dashboard} />
+    <Route path="/map" component={LiveMap} />
+    <Route path="/voyages" component={Voyages} />
+    <Route path="/invoices" component={Invoices} />
+    <Route path="/anomalies" component={Anomalies} />
+    <Route path="/fleet" component={Fleet} />
+  </Router>
+);
 
 export default App;
