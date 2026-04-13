@@ -15,6 +15,10 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: backend
+
     services:
       postgres:
         image: postgis/postgis:16-3.4
@@ -54,7 +58,6 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          cd $GITHUB_WORKSPACE/backend
           pip install -r requirements.txt
           pip install pytest pytest-django pytest-cov python-dateutil
 
@@ -77,7 +80,6 @@ jobs:
           AWS_S3_REGION_NAME: us-east-1
           DATADOG_API_KEY: ""
         run: |
-          cd $GITHUB_WORKSPACE/backend
           python manage.py migrate --noinput
           pytest --tb=short -q
 
