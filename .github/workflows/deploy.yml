@@ -56,12 +56,12 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
-          pip install pytest pytest-django pytest-cov
+          pip install pytest pytest-django pytest-cov python-dateutil
 
-      - name: Run unit tests
+      - name: Run migrations and tests
         env:
           DJANGO_SETTINGS_MODULE: core.settings
-          SECRET_KEY: ci-secret-key
+          SECRET_KEY: ci-secret-key-at-least-50-characters-long-xyzabc123
           DB_NAME: logistics_test
           DB_USER: postgres
           DB_PASSWORD: postgres
@@ -69,6 +69,14 @@ jobs:
           DB_PORT: "5432"
           REDIS_URL: redis://localhost:6379/0
           DEBUG: "True"
+          GROQ_API_KEY: ""
+          GROQ_MODEL: llama-3.3-70b-versatile
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""
+          AWS_STORAGE_BUCKET_NAME: ""
+          AWS_S3_REGION_NAME: us-east-1
+          DATADOG_API_KEY: ""
+          PYTHONPATH: /home/runner/work/Real-Time-Logistics-Tracking-Platform/Real-Time-Logistics-Tracking-Platform/backend
         run: |
           cd backend
           python manage.py migrate --noinput
@@ -87,10 +95,14 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install and build
+      - name: Install dependencies
         run: |
           cd frontend
-          npm ci
+          npm ci --prefer-offline
+
+      - name: Build
+        run: |
+          cd frontend
           npm run build
 
       - name: Check bundle size
