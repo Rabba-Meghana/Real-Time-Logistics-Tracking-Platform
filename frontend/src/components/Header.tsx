@@ -17,73 +17,41 @@ const Header: Component<HeaderProps> = (props) => {
 
   const statusLabel = () => ({
     connected: 'Live',
-    connecting: 'Connecting…',
+    connecting: 'Connecting',
     disconnected: 'Offline',
     error: 'Error',
   }[vesselStore.wsStatus()] ?? 'Unknown');
 
   return (
-    <header style={headerStyle}>
+    <header class="page-header">
       <div>
-        <h1 style={titleStyle}>{props.title}</h1>
-        {props.subtitle && <p style={subtitleStyle}>{props.subtitle}</p>}
+        <h1 style={{ 'font-family':'var(--font-display)', 'font-size':'1.3rem', color:'var(--text-primary)', 'font-weight':'400' }}>
+          {props.title}
+        </h1>
+        {props.subtitle && (
+          <p style={{ 'font-size':'0.72rem', color:'var(--text-muted)', 'margin-top':'1px' }}>{props.subtitle}</p>
+        )}
       </div>
-      <div style={rightWrap}>
-        <div style={wsIndicator}>
+      <div style={{ display:'flex', 'align-items':'center', gap:'16px' }}>
+        <div style={{ display:'flex', 'align-items':'center', gap:'6px' }}>
           <span
             class={vesselStore.wsStatus() === 'connected' ? 'pulse' : ''}
-            style={{ ...dot, background: statusColor() }}
+            style={{ width:'7px', height:'7px', 'border-radius':'50%', background: statusColor(), display:'inline-block' }}
           />
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-            {statusLabel()}
-          </span>
+          <span style={{ 'font-size':'0.76rem', color:'var(--text-secondary)' }}>{statusLabel()}</span>
           {vesselStore.lastUpdate() && (
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            <span style={{ 'font-size':'0.70rem', color:'var(--text-muted)' }}>
               · {format(vesselStore.lastUpdate()!, 'HH:mm:ss')}
             </span>
           )}
         </div>
-        <div style={posCount}>
-          <strong style={{ color: 'var(--accent)' }}>
-            {vesselStore.positionList().length}
-          </strong>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
-            vessels tracked
-          </span>
+        <div style={{ display:'flex', 'align-items':'baseline', background:'var(--accent-subtle)', padding:'3px 12px', 'border-radius':'100px', border:'1px solid var(--border)' }}>
+          <strong style={{ color:'var(--accent)', 'font-size':'0.95rem' }}>{vesselStore.positionList().length}</strong>
+          <span style={{ 'font-size':'0.70rem', color:'var(--text-muted)', 'margin-left':'4px' }}>vessels</span>
         </div>
       </div>
     </header>
   );
-};
-
-const headerStyle: Record<string, string> = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '0 32px', height: 'var(--header-height)',
-  borderBottom: '1px solid var(--border)',
-  background: 'var(--bg-card)',
-  flexShrink: '0',
-};
-const titleStyle: Record<string, string> = {
-  fontFamily: 'var(--font-display)', fontSize: '1.35rem',
-  color: 'var(--text-primary)', fontWeight: '400',
-};
-const subtitleStyle: Record<string, string> = {
-  fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px',
-};
-const rightWrap: Record<string, string> = {
-  display: 'flex', alignItems: 'center', gap: '20px',
-};
-const wsIndicator: Record<string, string> = {
-  display: 'flex', alignItems: 'center', gap: '6px',
-};
-const dot: Record<string, string> = {
-  width: '7px', height: '7px', borderRadius: '50%', display: 'inline-block',
-};
-const posCount: Record<string, string> = {
-  display: 'flex', alignItems: 'baseline',
-  background: 'var(--accent-subtle)',
-  padding: '4px 12px', borderRadius: '100px',
-  border: '1px solid var(--border)',
 };
 
 export default Header;
