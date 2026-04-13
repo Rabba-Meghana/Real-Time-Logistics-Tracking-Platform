@@ -137,7 +137,7 @@ export const Fleet: Component = () => {
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>{v.gross_tonnage?.toLocaleString() ?? '—'}</td>
                         <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                           {v.latest_position
-                            ? `${(v.latest_position as { latitude: number; longitude: number }).latitude?.toFixed(3)}, ${(v.latest_position as { longitude: number }).longitude?.toFixed(3)}`
+                            ? (() => { const p = v.latest_position as any; return p?.lat ? `${Number(p.lat).toFixed(3)}, ${Number(p.lon).toFixed(3)}` : p?.latitude ? `${Number(p.latitude).toFixed(3)}, ${Number(p.longitude).toFixed(3)}` : '—'; })()
                             : '—'}
                         </td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>

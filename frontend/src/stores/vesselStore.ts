@@ -1,6 +1,5 @@
 import { createSignal, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
-import { config } from '../config';
 import type { LivePosition } from '../types';
 
 type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -12,18 +11,23 @@ function createVesselStore() {
 
   let ws: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  let reconnectDelay = 1000;
+  let reconnectDelay = 2000;
 
   function connect() {
-    if (ws?.readyState === WebSocket.OPEN) return;
+    if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
     setWsStatus('connecting');
 
+    // Use the same host as the page, just switch protocol
+    const wsBase = window.location.hostname === 'localhost'
+      ? `ws://localhost:8000`
+      : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+
     try {
-      ws = new WebSocket(`${config.wsBaseUrl}/ws/vessels/tracking/`);
+      ws = new WebSocket(`${wsBase}/ws/vessels/tracking/`);
 
       ws.onopen = () => {
         setWsStatus('connected');
-        reconnectDelay = 1000;
+        reconnectDelay = 2000;
       };
 
       ws.onmessage = (event) => {
@@ -37,13 +41,10 @@ function createVesselStore() {
             setPositions(updates);
             setLastUpdate(new Date());
           }
-        } catch {
-          // ignore malformed messages
-        }
+        } catch { /* ignore */ }
       };
 
       ws.onerror = () => setWsStatus('error');
-
       ws.onclose = () => {
         setWsStatus('disconnected');
         scheduleReconnect();
@@ -57,7 +58,7 @@ function createVesselStore() {
   function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(() => {
-      reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
       connect();
     }, reconnectDelay);
   }
