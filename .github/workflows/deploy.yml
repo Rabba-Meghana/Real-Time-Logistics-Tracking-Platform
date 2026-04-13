@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/logistics-platform
+  IMAGE_PREFIX: rabba-meghana/logistics-platform
 
 jobs:
   test:
