@@ -16,9 +16,9 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # US inland waterway bounding boxes
+# aisstream.io format: [[minLat, minLon], [maxLat, maxLon]]
 INLAND_WATERWAY_BOXES = [
-    # Full continental US — catch everything
-    [{"lat": 24.0, "lon": -98.0}, {"lat": 49.0, "lon": -66.0}],
+    [[24.0, -98.0], [49.0, -66.0]]
 ]
 
 
@@ -42,7 +42,7 @@ async def stream_ais_positions(api_key: str, callback):
 
         # Read first message — may be an error or confirmation
         try:
-            first_raw = await asyncio.wait_for(ws.recv(), timeout=5)
+            first_raw = await asyncio.wait_for(ws.recv(), timeout=8)
             first_msg = json.loads(first_raw)
             msg_type = first_msg.get("MessageType", "")
             logger.info(f"AIS first message: {msg_type} — {str(first_msg)[:200]}")
