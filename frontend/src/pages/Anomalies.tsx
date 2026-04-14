@@ -92,10 +92,20 @@ export const Anomalies: Component = () => {
 };
 
 export const Fleet: Component = () => {
-  const [vessels, { refetch }] = createResource(() => vesselsApi.list().then(r => {
-    const data = r.data;
-    return (data?.results ?? data) as Vessel[];
-  }));
+  const [vessels, { refetch }] = createResource(async () => {
+    // Fetch all vessels across pages
+    let allVessels: Vessel[] = [];
+    let page = 1;
+    while (true) {
+      const r = await vesselsApi.list({ page: String(page), page_size: '200' });
+      const data = r.data;
+      const results = (data?.results ?? data) as Vessel[];
+      allVessels = [...allVessels, ...results];
+      if (!data?.next || results.length < 200) break;
+      page++;
+    }
+    return allVessels;
+  });
 
   // Auto-refresh every 30s to show live position updates
   onMount(() => {
@@ -105,7 +115,7 @@ export const Fleet: Component = () => {
 
   return (
     <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
-      <Header title="Fleet" subtitle="Vessel registry and real-time status" />
+      <Header title="Fleet" subtitle={`Vessel registry and real-time status · ${vessels()?.length ?? 0} vessels`} />
       <div class="page-content fade-in">
         <div class="card">
           <Show when={vessels.loading}>

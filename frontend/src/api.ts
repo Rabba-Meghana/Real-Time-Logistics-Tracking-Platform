@@ -36,7 +36,7 @@ api.interceptors.response.use(
 
 // Typed API methods
 export const vesselsApi = {
-  list: () => api.get('/vessels/'),
+  list: (params?: Record<string, string>) => api.get('/vessels/', { params }),
   livePositions: () => api.get('/vessels/live_positions/'),
   track: (id: string, hours = 24) => api.get(`/vessels/${id}/track/?hours=${hours}`),
   nearby: (lat: number, lon: number, radiusKm = 50) =>
