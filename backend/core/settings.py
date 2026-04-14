@@ -144,6 +144,17 @@ REST_FRAMEWORK = {
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
+# WebSocket allowed origins
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://18.222.30.134:3000",
+    "http://18.222.30.134",
+]
+
+CHANNEL_SECURITY = False
+
+
 # JWT
 from datetime import timedelta
 SIMPLE_JWT = {

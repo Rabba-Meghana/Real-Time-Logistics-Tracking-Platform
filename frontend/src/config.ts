@@ -2,8 +2,8 @@
 const env = import.meta.env;
 
 export const config = {
-  apiBaseUrl: env.VITE_API_BASE_URL ?? 'http://localhost:8000',
-  wsBaseUrl: env.VITE_WS_BASE_URL ?? 'ws://localhost:8000',
+  apiBaseUrl: env.VITE_API_BASE_URL ?? '',
+  wsBaseUrl: env.VITE_WS_BASE_URL ?? `ws://${window.location.host}`,
   mapTileUrl: env.VITE_MAP_TILE_URL ?? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   mapTileAttribution: env.VITE_MAP_TILE_ATTRIBUTION ?? '&copy; OpenStreetMap contributors',
   positionRefreshMs: Number(env.VITE_POSITION_REFRESH_MS ?? 5000),
