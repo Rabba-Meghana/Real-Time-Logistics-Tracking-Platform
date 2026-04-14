@@ -148,7 +148,9 @@ class Command(BaseCommand):
 
     def _seed_ports(self):
         from vessels.models import Port
-        Port.objects.all().delete()
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("TRUNCATE TABLE invoices, voyage_events, voyages, vessel_positions, anomaly_logs, dead_letter_logs, vessels, ports RESTART IDENTITY CASCADE;")
         ports = []
         for name, code, country, lat, lon, inland in US_INLAND_PORTS:
             ports.append(Port(
