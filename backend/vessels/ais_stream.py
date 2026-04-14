@@ -29,7 +29,7 @@ async def stream_ais_positions(api_key: str, callback):
     """
     url = "wss://stream.aisstream.io/v0/stream"
     subscribe_msg = {
-        "APIKey": api_key,
+        "APIkey": api_key,
         "BoundingBoxes": INLAND_WATERWAY_BOXES,
         "FilterMessageTypes": ["PositionReport"],
     }
