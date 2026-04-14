@@ -17,16 +17,8 @@ logger = logging.getLogger(__name__)
 
 # US inland waterway bounding boxes
 INLAND_WATERWAY_BOXES = [
-    # Mississippi River corridor
-    [{"lat": 29.0, "lon": -91.5}, {"lat": 47.0, "lon": -88.0}],
-    # Ohio River
-    [{"lat": 37.0, "lon": -85.0}, {"lat": 42.0, "lon": -80.0}],
-    # Tennessee / Cumberland
-    [{"lat": 34.0, "lon": -89.0}, {"lat": 37.5, "lon": -85.0}],
-    # Illinois / Chicago waterway
-    [{"lat": 38.0, "lon": -91.0}, {"lat": 42.5, "lon": -87.5}],
-    # Gulf Intracoastal
-    [{"lat": 28.5, "lon": -97.0}, {"lat": 31.0, "lon": -88.0}],
+    # Full continental US — catch everything
+    [{"lat": 24.0, "lon": -98.0}, {"lat": 49.0, "lon": -66.0}],
 ]
 
 
@@ -44,7 +36,7 @@ async def stream_ais_positions(api_key: str, callback):
 
     logger.info("Connecting to aisstream.io for real AIS data...")
 
-    async with websockets.connect(url, ping_interval=30) as ws:
+    async with websockets.connect(url, ping_interval=20, close_timeout=10, open_timeout=30) as ws:
         await ws.send(json.dumps(subscribe_msg))
         logger.info("Subscribed to aisstream.io — waiting for vessels...")
 

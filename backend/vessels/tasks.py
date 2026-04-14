@@ -279,7 +279,11 @@ def fetch_real_ais_positions(self):
         loop.close()
 
         if isinstance(positions, dict) and 'error' in positions:
-            logger.warning(f'Real AIS error: {positions["error"]} — falling back to simulation')
+            err = positions["error"]
+            if 'close frame' in err or 'connection closed' in err.lower():
+                logger.info(f'AIS stream closed cleanly with no data — falling back to simulation')
+            else:
+                logger.warning(f'Real AIS error: {err} — falling back to simulation')
             return fetch_all_vessel_positions.apply_async()
 
         if not positions:
