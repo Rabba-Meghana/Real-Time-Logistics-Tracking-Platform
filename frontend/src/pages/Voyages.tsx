@@ -7,17 +7,25 @@ import { format, parseISO } from 'date-fns';
 const Voyages: Component = () => {
   const [statusFilter, setStatusFilter] = createSignal('');
   const [cargoFilter, setCargoFilter] = createSignal('');
+  const [page, setPage] = createSignal(1);
   const [selected, setSelected] = createSignal<Voyage | null>(null);
 
-  const [voyages, { refetch }] = createResource(
-    () => ({ status: statusFilter(), cargo: cargoFilter() }),
-    ({ status, cargo }) => {
-      const params: Record<string, string> = {};
+  const [voyageData, { refetch }] = createResource(
+    () => ({ status: statusFilter(), cargo: cargoFilter(), page: page() }),
+    ({ status, cargo, page }) => {
+      const params: Record<string, string> = { page: String(page), page_size: '100' };
       if (status) params.status = status;
       if (cargo) params.cargo_type = cargo;
       return voyagesApi.list(params).then(r => r.data);
     }
   );
+
+  const voyages = () => {
+    const d = voyageData();
+    return (d?.results ?? d ?? []) as Voyage[];
+  };
+  const totalCount = () => (voyageData() as any)?.count ?? voyages().length;
+  const totalPages = () => Math.ceil(totalCount() / 100);
 
   const badge = (status: string) => <span class={`badge badge-${status}`}>{status}</span>;
 
@@ -25,26 +33,28 @@ const Voyages: Component = () => {
     <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
       <Header title="Voyages" subtitle="50,000+ voyage records across US inland waterways" />
       <div class="page-content fade-in" style={{ 'overflow-y':'auto' }}>
-        {/* Filters */}
-        <div style={{ display:'flex', gap:'10px', 'margin-bottom':'16px' }}>
-          <select class="input" style={{ width:'160px', 'font-size':'0.83rem' }} value={statusFilter()} onChange={e => setStatusFilter(e.currentTarget.value)}>
+        <div style={{ display:'flex', gap:'10px', 'margin-bottom':'16px', 'align-items':'center' }}>
+          <select class="input" style={{ width:'160px', 'font-size':'0.83rem' }} value={statusFilter()} onChange={e => { setStatusFilter(e.currentTarget.value); setPage(1); }}>
             <option value="">All statuses</option>
             {['active','delayed','planned','completed','cancelled'].map(s => <option value={s}>{s}</option>)}
           </select>
-          <select class="input" style={{ width:'160px', 'font-size':'0.83rem' }} value={cargoFilter()} onChange={e => setCargoFilter(e.currentTarget.value)}>
+          <select class="input" style={{ width:'160px', 'font-size':'0.83rem' }} value={cargoFilter()} onChange={e => { setCargoFilter(e.currentTarget.value); setPage(1); }}>
             <option value="">All cargo</option>
             {['grain','coal','petroleum','chemicals','containers','steel','aggregate','fertilizer','other'].map(c => <option value={c}>{c}</option>)}
           </select>
-          <button class="btn btn-ghost btn-sm" onClick={() => { setStatusFilter(''); setCargoFilter(''); }}>Clear</button>
+          <button class="btn btn-ghost btn-sm" onClick={() => { setStatusFilter(''); setCargoFilter(''); setPage(1); }}>Clear</button>
           <button class="btn btn-primary btn-sm" onClick={() => refetch()}>Refresh</button>
+          <span style={{ 'font-size':'0.78rem', color:'var(--text-muted)', 'margin-left':'auto' }}>
+            Showing {voyages().length} of {totalCount().toLocaleString()} voyages
+          </span>
         </div>
 
         {/* Table */}
         <div class="card">
-          <Show when={voyages.loading}>
+          <Show when={voyageData.loading}>
             <div style={{ display:'flex', 'justify-content':'center', padding:'60px' }}><div class="spinner"/></div>
           </Show>
-          <Show when={!voyages.loading && voyages()}>
+          <Show when={!voyageData.loading && voyages().length > 0}>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -54,7 +64,7 @@ const Voyages: Component = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <For each={(voyages() as any)?.results ?? voyages()}>
+                  <For each={voyages()}>
                     {(v: Voyage) => (
                       <tr onClick={() => setSelected(v)}>
                         <td><code style={{ 'font-family':'var(--font-mono)', 'font-size':'0.76rem', color:'var(--accent)' }}>{v.voyage_number}</code></td>
@@ -75,6 +85,13 @@ const Voyages: Component = () => {
                 </tbody>
               </table>
             </div>
+            <Show when={totalPages() > 1}>
+              <div style={{ display:'flex', 'justify-content':'center', 'align-items':'center', gap:'8px', padding:'16px', 'border-top':'1px solid var(--border)' }}>
+                <button class="btn btn-ghost btn-sm" disabled={page() === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+                <span style={{ 'font-size':'0.80rem', color:'var(--text-muted)' }}>Page {page()} of {totalPages()}</span>
+                <button class="btn btn-ghost btn-sm" disabled={page() >= totalPages()} onClick={() => setPage(p => p + 1)}>Next →</button>
+              </div>
+            </Show>
           </Show>
         </div>
       </div>

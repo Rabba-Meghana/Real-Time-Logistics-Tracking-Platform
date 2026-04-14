@@ -6,19 +6,27 @@ import { format, parseISO } from 'date-fns';
 
 const Invoices: Component = () => {
   const [statusFilter, setStatusFilter] = createSignal('');
+  const [page, setPage] = createSignal(1);
   const [selected, setSelected] = createSignal<Invoice | null>(null);
   const [actionLoading, setActionLoading] = createSignal(false);
   const [llmSummary, setLlmSummary] = createSignal<string | null>(null);
   const [llmLoading, setLlmLoading] = createSignal(false);
 
-  const [invoices, { refetch }] = createResource(
-    () => statusFilter(),
-    (status) => {
-      const params: Record<string, string> = {};
+  const [invoiceData, { refetch }] = createResource(
+    () => ({ status: statusFilter(), page: page() }),
+    ({ status, page }) => {
+      const params: Record<string, string> = { page: String(page), page_size: '100' };
       if (status) params.validation_status = status;
       return invoicesApi.list(params).then(r => r.data);
     }
   );
+
+  const invoices = () => {
+    const d = invoiceData();
+    return (d?.results ?? d ?? []) as Invoice[];
+  };
+  const totalCount = () => (invoiceData() as any)?.count ?? invoices().length;
+  const totalPages = () => Math.ceil(totalCount() / 100);
 
   const [stats] = createResource(() => invoicesApi.dashboardStats().then(r => r.data));
 
@@ -51,22 +59,12 @@ const Invoices: Component = () => {
           max_tokens: 1000,
           messages: [{
             role: 'user',
-            content: `Summarize this freight invoice in 2-3 sentences for an operations manager. Be concise and highlight any risks.
-
-Invoice: ${inv.invoice_number}
-Vendor: ${inv.vendor_name}
-Voyage: ${inv.voyage_number}
-Amount: $${parseFloat(inv.total_amount).toLocaleString()}
-LLM Confidence: ${Math.round((inv.confidence_score ?? 0) * 100)}%
-Status: ${inv.validation_status}
-Discrepancies: ${inv.discrepancy_count}
-Notes: ${inv.validation_notes || 'none'}`
+            content: `Summarize this freight invoice in 2-3 sentences for an operations manager. Be concise and highlight any risks.\n\nInvoice: ${inv.invoice_number}\nVendor: ${inv.vendor_name}\nVoyage: ${inv.voyage_number}\nAmount: $${parseFloat(inv.total_amount).toLocaleString()}\nLLM Confidence: ${Math.round((inv.confidence_score ?? 0) * 100)}%\nStatus: ${inv.validation_status}\nDiscrepancies: ${inv.discrepancy_count}\nNotes: ${inv.validation_notes || 'none'}`
           }]
         })
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text ?? '';
-      setLlmSummary(text);
+      setLlmSummary(data.content?.[0]?.text ?? '');
     } catch {
       setLlmSummary('Summary unavailable.');
     }
@@ -108,12 +106,12 @@ Notes: ${inv.validation_notes || 'none'}`
           </div>
         </Show>
 
-        <div style={{ display:'flex', gap:'10px', 'margin-bottom':'14px' }}>
+        <div style={{ display:'flex', gap:'10px', 'margin-bottom':'14px', 'align-items':'center' }}>
           <select
             class="input"
             style={{ width:'200px', 'font-size':'0.83rem' }}
             value={statusFilter()}
-            onInput={e => setStatusFilter(e.currentTarget.value)}
+            onInput={e => { setStatusFilter(e.currentTarget.value); setPage(1); }}
           >
             <option value="">All statuses</option>
             {['pending','validating','valid','invalid','needs_review','approved','rejected'].map(s => (
@@ -121,20 +119,23 @@ Notes: ${inv.validation_notes || 'none'}`
             ))}
           </select>
           <button class="btn btn-primary btn-sm" onClick={() => refetch()}>Refresh</button>
+          <span style={{ 'font-size':'0.78rem', color:'var(--text-muted)', 'margin-left':'auto' }}>
+            Showing {invoices().length} of {totalCount().toLocaleString()} invoices
+          </span>
         </div>
 
         <div class="card">
-          <Show when={invoices.loading}>
+          <Show when={invoiceData.loading}>
             <div style={{ display:'flex', 'justify-content':'center', padding:'60px' }}><div class="spinner"/></div>
           </Show>
-          <Show when={!invoices.loading && invoices()}>
+          <Show when={!invoiceData.loading && invoices().length > 0}>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr><th>Invoice #</th><th>Vendor</th><th>Voyage</th><th>Total</th><th>Confidence</th><th>Discrepancies</th><th>Validated</th><th>Status</th></tr>
                 </thead>
                 <tbody>
-                  <For each={(invoices() as any)?.results ?? invoices()}>
+                  <For each={invoices()}>
                     {(inv: Invoice) => (
                       <tr onClick={() => openInvoice(inv)}>
                         <td><code style={{ 'font-family':'var(--font-mono)', 'font-size':'0.76rem', color:'var(--accent)' }}>{inv.invoice_number}</code></td>
@@ -155,6 +156,13 @@ Notes: ${inv.validation_notes || 'none'}`
                 </tbody>
               </table>
             </div>
+            <Show when={totalPages() > 1}>
+              <div style={{ display:'flex', 'justify-content':'center', 'align-items':'center', gap:'8px', padding:'16px', 'border-top':'1px solid var(--border)' }}>
+                <button class="btn btn-ghost btn-sm" disabled={page() === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+                <span style={{ 'font-size':'0.80rem', color:'var(--text-muted)' }}>Page {page()} of {totalPages()}</span>
+                <button class="btn btn-ghost btn-sm" disabled={page() >= totalPages()} onClick={() => setPage(p => p + 1)}>Next →</button>
+              </div>
+            </Show>
           </Show>
         </div>
       </div>
@@ -176,7 +184,6 @@ Notes: ${inv.validation_notes || 'none'}`
                 </div>
               </div>
 
-              {/* LLM Summary */}
               <div style={{ background:'var(--accent-subtle)', border:'1px solid var(--border)', 'border-radius':'var(--radius-lg)', padding:'14px 18px', 'margin-bottom':'18px' }}>
                 <div style={{ 'font-size':'0.65rem', color:'var(--accent)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'6px', 'font-weight':'700' }}>⚡ AI Summary</div>
                 <Show when={!llmLoading()} fallback={<div style={{ display:'flex', 'align-items':'center', gap:'8px', color:'var(--text-muted)', 'font-size':'0.82rem' }}><div class="spinner" style={{ width:'14px', height:'14px' }}/> Analyzing invoice…</div>}>
@@ -184,7 +191,6 @@ Notes: ${inv.validation_notes || 'none'}`
                 </Show>
               </div>
 
-              {/* LLM confidence */}
               <div style={{ background:'var(--bg-subtle)', 'border-radius':'var(--radius-lg)', padding:'16px 20px', 'margin-bottom':'20px' }}>
                 <div style={{ display:'flex', 'justify-content':'space-between', 'align-items':'center', 'margin-bottom':'10px' }}>
                   <div>
@@ -204,7 +210,6 @@ Notes: ${inv.validation_notes || 'none'}`
                 )}
               </div>
 
-              {/* Financials */}
               <div style={{ display:'grid', 'grid-template-columns':'1fr 1fr 1fr', gap:'10px', 'margin-bottom':'20px' }}>
                 {[['Subtotal', `$${parseFloat(inv().subtotal).toLocaleString()}`],
                   ['Tax', `$${parseFloat(inv().tax_amount).toLocaleString()}`],
@@ -217,7 +222,6 @@ Notes: ${inv.validation_notes || 'none'}`
                 ))}
               </div>
 
-              {/* Discrepancies */}
               <Show when={inv().discrepancies?.length > 0}>
                 <div style={{ 'margin-bottom':'20px' }}>
                   <div style={{ 'font-size':'0.68rem', color:'var(--text-muted)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'10px', 'font-weight':'700' }}>

@@ -5,9 +5,16 @@ import * as d3 from 'd3';
 import { format } from 'date-fns';
 
 const Dashboard: Component = () => {
-  const [voyageStats] = createResource(() => voyagesApi.dashboardStats().then(r => r.data));
-  const [invoiceStats] = createResource(() => invoicesApi.dashboardStats().then(r => r.data));
-  const [vesselStats] = createResource(() => vesselsApi.stats().then(r => r.data));
+  const [voyageStats, { refetch: refetchVoyage }] = createResource(() => voyagesApi.dashboardStats().then(r => r.data));
+  const [invoiceStats, { refetch: refetchInvoice }] = createResource(() => invoicesApi.dashboardStats().then(r => r.data));
+  const [vesselStats, { refetch: refetchVessel }] = createResource(() => vesselsApi.stats().then(r => r.data));
+
+  // Auto-refresh every 30s
+  onCleanup(() => {});
+  const refreshInterval = setInterval(() => {
+    refetchVoyage(); refetchInvoice(); refetchVessel();
+  }, 30000);
+  onCleanup(() => clearInterval(refreshInterval));
 
   let barRef: SVGSVGElement | undefined;
   let donutRef: SVGSVGElement | undefined;
