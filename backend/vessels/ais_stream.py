@@ -29,7 +29,7 @@ async def stream_ais_positions(api_key: str, callback):
     """
     url = "wss://stream.aisstream.io/v0/stream"
     subscribe_msg = {
-        "APIkey": api_key,
+        "APIKey": api_key,
         "BoundingBoxes": INLAND_WATERWAY_BOXES,
         "FilterMessageTypes": ["PositionReport"],
     }
@@ -39,6 +39,34 @@ async def stream_ais_positions(api_key: str, callback):
     async with websockets.connect(url, ping_interval=20, close_timeout=10, open_timeout=30) as ws:
         await ws.send(json.dumps(subscribe_msg))
         logger.info("Subscribed to aisstream.io — waiting for vessels...")
+
+        # Read first message — may be an error or confirmation
+        try:
+            first_raw = await asyncio.wait_for(ws.recv(), timeout=5)
+            first_msg = json.loads(first_raw)
+            msg_type = first_msg.get("MessageType", "")
+            logger.info(f"AIS first message: {msg_type} — {str(first_msg)[:200]}")
+            # If it is a position report, process it
+            if msg_type == "PositionReport":
+                meta = first_msg.get("MetaData", {})
+                pos_data = first_msg.get("Message", {}).get("PositionReport", {})
+                lat = meta.get("latitude") or pos_data.get("Latitude")
+                lon = meta.get("longitude") or pos_data.get("Longitude")
+                if lat and lon:
+                    await callback({
+                        "mmsi": str(meta.get("MMSI", "")),
+                        "name": meta.get("ShipName", "Unknown").strip(),
+                        "lat": round(float(lat), 6), "lon": round(float(lon), 6),
+                        "speed_over_ground": round(float(pos_data.get("SpeedOverGround", 0)), 1),
+                        "course_over_ground": round(float(pos_data.get("CourseOverGround", 0)), 1),
+                        "heading": int(pos_data.get("TrueHeading", 511)),
+                        "nav_status": int(pos_data.get("NavigationalStatus", 15)),
+                        "timestamp": datetime.now(tz.utc).isoformat(), "source": "aisstream.io",
+                    })
+        except asyncio.TimeoutError:
+            logger.warning("AIS: no first message in 5s — connection may be rejected")
+        except Exception as e:
+            logger.warning(f"AIS first message error: {e}")
 
         async for raw in ws:
             try:
