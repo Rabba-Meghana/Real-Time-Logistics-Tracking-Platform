@@ -91,8 +91,8 @@ CELERY_TASK_ROUTES = {
 
 CELERY_BEAT_SCHEDULE = {
     'fetch-ais-positions': {
-        'task': 'vessels.tasks.fetch_all_vessel_positions',
-        'schedule': 300,
+        'task': 'vessels.tasks.fetch_real_ais_positions',
+        'schedule': 60,
     },
     'detect-anomalies': {
         'task': 'vessels.tasks.run_anomaly_detection',
@@ -157,6 +157,9 @@ AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default='us-east-1')
 # LLM — Groq
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
 GROQ_MODEL = env('GROQ_MODEL', default='llama-3.3-70b-versatile')
+
+# AISstream.io real AIS feed
+AISSTREAM_API_KEY = env("AISSTREAM_API_KEY", default="")
 
 # Datadog
 DATADOG_API_KEY = env('DATADOG_API_KEY', default='')

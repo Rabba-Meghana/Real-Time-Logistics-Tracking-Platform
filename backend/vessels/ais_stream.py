@@ -1,0 +1,122 @@
+"""
+Real AIS data ingestion from aisstream.io WebSocket feed.
+Filters for US inland waterway bounding boxes.
+API key from environment — never hardcoded.
+"""
+import asyncio
+import json
+import logging
+import os
+from datetime import timezone as tz
+from datetime import datetime
+
+import websockets
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+# US inland waterway bounding boxes
+INLAND_WATERWAY_BOXES = [
+    # Mississippi River corridor
+    [{"lat": 29.0, "lon": -91.5}, {"lat": 47.0, "lon": -88.0}],
+    # Ohio River
+    [{"lat": 37.0, "lon": -85.0}, {"lat": 42.0, "lon": -80.0}],
+    # Tennessee / Cumberland
+    [{"lat": 34.0, "lon": -89.0}, {"lat": 37.5, "lon": -85.0}],
+    # Illinois / Chicago waterway
+    [{"lat": 38.0, "lon": -91.0}, {"lat": 42.5, "lon": -87.5}],
+    # Gulf Intracoastal
+    [{"lat": 28.5, "lon": -97.0}, {"lat": 31.0, "lon": -88.0}],
+]
+
+
+async def stream_ais_positions(api_key: str, callback):
+    """
+    Connect to aisstream.io and stream real AIS positions.
+    Calls callback(position_dict) for each valid position received.
+    """
+    url = "wss://stream.aisstream.io/v0/stream"
+    subscribe_msg = {
+        "APIKey": api_key,
+        "BoundingBoxes": INLAND_WATERWAY_BOXES,
+        "FilterMessageTypes": ["PositionReport"],
+    }
+
+    logger.info("Connecting to aisstream.io for real AIS data...")
+
+    async with websockets.connect(url, ping_interval=30) as ws:
+        await ws.send(json.dumps(subscribe_msg))
+        logger.info("Subscribed to aisstream.io — waiting for vessels...")
+
+        async for raw in ws:
+            try:
+                msg = json.loads(raw)
+                msg_type = msg.get("MessageType")
+                if msg_type != "PositionReport":
+                    continue
+
+                meta = msg.get("MetaData", {})
+                pos = msg.get("Message", {}).get("PositionReport", {})
+
+                lat = meta.get("latitude") or pos.get("Latitude")
+                lon = meta.get("longitude") or pos.get("Longitude")
+
+                if lat is None or lon is None:
+                    continue
+                if lat == 0.0 and lon == 0.0:
+                    continue
+                if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+                    continue
+
+                position = {
+                    "mmsi": str(meta.get("MMSI", pos.get("UserID", ""))),
+                    "name": meta.get("ShipName", "Unknown").strip(),
+                    "lat": round(float(lat), 6),
+                    "lon": round(float(lon), 6),
+                    "speed_over_ground": round(float(pos.get("SpeedOverGround", 0)), 1),
+                    "course_over_ground": round(float(pos.get("CourseOverGround", 0)), 1),
+                    "heading": int(pos.get("TrueHeading", 511)),
+                    "nav_status": int(pos.get("NavigationalStatus", 15)),
+                    "timestamp": datetime.now(tz.utc).isoformat(),
+                    "source": "aisstream.io",
+                }
+
+                await callback(position)
+
+            except Exception as e:
+                logger.warning(f"AIS parse error: {e}")
+                continue
+
+
+async def ingest_real_ais(duration_seconds: int = 60):
+    """
+    Pull real AIS positions for duration_seconds, save to DB.
+    Called by Celery task.
+    """
+    import django
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+
+    api_key = getattr(settings, "AISSTREAM_API_KEY", "") or os.environ.get("AISSTREAM_API_KEY", "")
+    if not api_key:
+        logger.warning("AISSTREAM_API_KEY not set — skipping real AIS ingestion")
+        return {"error": "no_api_key"}
+
+    positions = []
+
+    async def collect(pos):
+        positions.append(pos)
+
+    try:
+        await asyncio.wait_for(
+            stream_ais_positions(api_key, collect),
+            timeout=duration_seconds,
+        )
+    except asyncio.TimeoutError:
+        pass  # Normal — we collect for duration then process
+    except Exception as e:
+        logger.error(f"AIS stream error: {e}")
+        if not positions:
+            return {"error": str(e)}
+
+    logger.info(f"Collected {len(positions)} real AIS positions")
+    return positions

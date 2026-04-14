@@ -253,3 +253,117 @@ def run_anomaly_detection(self):
         AnomalyLog.objects.bulk_create(anomalies_to_create, ignore_conflicts=True)
 
     return {'anomalies_detected': len(anomalies_to_create)}
+
+
+@shared_task(bind=True, max_retries=2)
+def fetch_real_ais_positions(self):
+    """
+    Fetch real vessel positions from aisstream.io.
+    Falls back to simulation if API key not set.
+    """
+    import asyncio
+    import os
+    from django.conf import settings
+
+    api_key = getattr(settings, 'AISSTREAM_API_KEY', '') or os.environ.get('AISSTREAM_API_KEY', '')
+    if not api_key:
+        logger.info('AISSTREAM_API_KEY not set — using simulation')
+        return fetch_all_vessel_positions.apply_async()
+
+    try:
+        from vessels.ais_stream import ingest_real_ais
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        positions = loop.run_until_complete(ingest_real_ais(duration_seconds=55))
+        loop.close()
+
+        if isinstance(positions, dict) and 'error' in positions:
+            logger.warning(f'Real AIS error: {positions["error"]} — falling back to simulation')
+            return fetch_all_vessel_positions.apply_async()
+
+        if not positions:
+            logger.info('No real AIS positions received — falling back to simulation')
+            return fetch_all_vessel_positions.apply_async()
+
+        # Save real positions to DB
+        validated = []
+        failed = []
+        for pos in positions:
+            error = _validate_position(pos)
+            if error:
+                failed.append({'data': pos, 'reason': error})
+                continue
+            validated.append(pos)
+
+        if failed:
+            DeadLetterLog.objects.bulk_create([
+                DeadLetterLog(raw_data=f['data'], failure_reason=f['reason'], source='aisstream.io')
+                for f in failed
+            ], ignore_conflicts=True)
+
+        if not validated:
+            return {'real_positions': 0, 'failed': len(failed)}
+
+        # Upsert vessels from real data
+        from django.contrib.gis.geos import Point
+        from dateutil.parser import parse as parse_dt
+        from datetime import timezone as tz_mod
+
+        mmsis = [p['mmsi'] for p in validated]
+        vessel_map = {v.mmsi: v for v in Vessel.objects.filter(mmsi__in=mmsis)}
+
+        new_vessels = []
+        for pos in validated:
+            if pos['mmsi'] not in vessel_map:
+                new_vessels.append(Vessel(
+                    mmsi=pos['mmsi'],
+                    name=pos.get('name', f"Vessel {pos['mmsi']}"),
+                    vessel_type='cargo',
+                    flag='US',
+                    is_active=True,
+                ))
+
+        if new_vessels:
+            created = Vessel.objects.bulk_create(new_vessels, ignore_conflicts=True)
+            for v in Vessel.objects.filter(mmsi__in=[v.mmsi for v in new_vessels]):
+                vessel_map[v.mmsi] = v
+
+        position_objects = []
+        for pos in validated:
+            vessel = vessel_map.get(pos['mmsi'])
+            if not vessel:
+                continue
+            ts = parse_dt(pos['timestamp'])
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=tz_mod.utc)
+            position_objects.append(VesselPosition(
+                vessel=vessel,
+                position=Point(pos['lon'], pos['lat'], srid=4326),
+                latitude=pos['lat'],
+                longitude=pos['lon'],
+                speed_over_ground=pos['speed_over_ground'],
+                course_over_ground=pos['course_over_ground'],
+                heading=pos.get('heading', 511),
+                nav_status=pos.get('nav_status', 15),
+                timestamp=ts,
+                source='aisstream.io',
+                raw_message=pos,
+            ))
+
+        from django.db import transaction
+        import json as json_mod
+        with transaction.atomic():
+            VesselPosition.objects.bulk_create(position_objects, ignore_conflicts=True)
+
+        # Update Redis cache
+        for pos in validated:
+            from django.core.cache import cache
+            cache.set(f'vessel:{pos["mmsi"]}:latest_position', json_mod.dumps(pos), timeout=600)
+
+        logger.info(f'Real AIS: {len(position_objects)} positions saved from aisstream.io')
+        return {'real_positions': len(position_objects), 'failed': len(failed), 'source': 'aisstream.io'}
+
+    except Exception as exc:
+        logger.error(f'Real AIS task error: {exc}')
+        raise self.retry(exc=exc, countdown=30)
