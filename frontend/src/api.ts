@@ -67,6 +67,7 @@ export const invoicesApi = {
   reject: (id: string) => api.post(`/invoices/${id}/reject/`),
   dashboardStats: () => api.get('/invoices/dashboard_stats/'),
   pendingReview: () => api.get('/invoices/pending_review/'),
+  summary: (id: string) => api.post(`/invoices/${id}/summary/`),
 };
 
 export const observabilityApi = {

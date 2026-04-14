@@ -51,20 +51,8 @@ const Invoices: Component = () => {
     setLlmSummary(null);
     setLlmLoading(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `Summarize this freight invoice in 2-3 sentences for an operations manager. Be concise and highlight any risks.\n\nInvoice: ${inv.invoice_number}\nVendor: ${inv.vendor_name}\nVoyage: ${inv.voyage_number}\nAmount: $${parseFloat(inv.total_amount).toLocaleString()}\nLLM Confidence: ${Math.round((inv.confidence_score ?? 0) * 100)}%\nStatus: ${inv.validation_status}\nDiscrepancies: ${inv.discrepancy_count}\nNotes: ${inv.validation_notes || 'none'}`
-          }]
-        })
-      });
-      const data = await res.json();
-      setLlmSummary(data.content?.[0]?.text ?? '');
+      const res = await invoicesApi.summary(inv.id);
+      setLlmSummary(res.data?.summary ?? 'Summary unavailable.');
     } catch {
       setLlmSummary('Summary unavailable.');
     }

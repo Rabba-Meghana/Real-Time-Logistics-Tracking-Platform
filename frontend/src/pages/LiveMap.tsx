@@ -60,6 +60,9 @@ const LiveMap: Component = () => {
       preferCanvas: true,
       maxBounds: L.latLngBounds([14.0, -140.0], [62.0, -50.0]),
       minZoom: 3,
+      scrollWheelZoom: true,
+      wheelDebounceTime: 100,
+      wheelPxPerZoomLevel: 120,
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -113,7 +116,7 @@ const LiveMap: Component = () => {
         <div ref={mapContainer!} style={{ width:'100%', height:'100%' }} />
 
         {/* Live status badge - top left */}
-        <div style={{ position:'absolute', top:'12px', left:'12px', 'z-index':'1000', background: isLive() ? 'rgba(5,150,105,0.95)' : 'rgba(107,114,128,0.9)', 'backdrop-filter':'blur(8px)', 'border-radius':'100px', padding:'6px 14px', display:'flex', 'align-items':'center', gap:'7px', 'box-shadow':'var(--shadow-md)' }}>
+        <div style={{ position:'absolute', bottom:'20px', left:'12px', 'z-index':'1000', background: isLive() ? 'rgba(5,150,105,0.95)' : 'rgba(107,114,128,0.9)', 'backdrop-filter':'blur(8px)', 'border-radius':'100px', padding:'6px 14px', display:'flex', 'align-items':'center', gap:'7px', 'box-shadow':'var(--shadow-md)' }}>
           <span style={{ width:'7px', height:'7px', 'border-radius':'50%', background:'white', display:'inline-block', animation: isLive() ? 'pulse 1.5s ease-in-out infinite' : 'none' }}/>
           <span style={{ color:'white', 'font-size':'0.76rem', 'font-weight':'600', 'letter-spacing':'0.04em' }}>
             {isLive() ? 'LIVE' : 'LOADING'}

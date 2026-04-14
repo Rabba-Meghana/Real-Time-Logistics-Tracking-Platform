@@ -60,6 +60,49 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice.save()
         return Response(InvoiceSerializer(invoice).data)
 
+
+    @action(detail=True, methods=['post'])
+    def summary(self, request, pk=None):
+        invoice = self.get_object()
+        import os
+        from django.conf import settings
+        groq_key = getattr(settings, 'GROQ_API_KEY', '') or os.environ.get('GROQ_API_KEY', '')
+        groq_model = getattr(settings, 'GROQ_MODEL', 'llama-3.3-70b-versatile')
+        if not groq_key:
+            return Response({'summary': 'AI summary unavailable — GROQ_API_KEY not configured.'})
+        try:
+            import httpx
+            prompt = (
+                f'Summarize this freight invoice in 2-3 sentences for an operations manager. '
+                f'Be concise and highlight any risks.
+
+'
+                f'Invoice: {invoice.invoice_number}
+'
+                f'Vendor: {invoice.vendor_name}
+'
+                f'Amount: ${float(invoice.total_amount):,.2f}
+'
+                f'LLM Confidence: {round((invoice.confidence_score or 0) * 100)}%
+'
+                f'Status: {invoice.validation_status}
+'
+                f'Discrepancies: {invoice.discrepancy_count}
+'
+                f'Notes: {invoice.validation_notes or "none"}'
+            )
+            res = httpx.post(
+                'https://api.groq.com/openai/v1/chat/completions',
+                headers={'Authorization': f'Bearer {groq_key}', 'Content-Type': 'application/json'},
+                json={'model': groq_model, 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 200},
+                timeout=15,
+            )
+            data = res.json()
+            text = data['choices'][0]['message']['content'].strip()
+            return Response({'summary': text})
+        except Exception as e:
+            return Response({'summary': f'Summary unavailable: {str(e)}'})
+
     @action(detail=False, methods=['get'])
     def dashboard_stats(self, request):
         cutoff_30d = timezone.now() - timedelta(days=30)

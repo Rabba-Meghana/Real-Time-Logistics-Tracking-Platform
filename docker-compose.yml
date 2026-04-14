@@ -36,6 +36,8 @@ services:
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       AISSTREAM_API_KEY: 4bc2b71f6a08d1ee177140bd5f717a3c52ab853c
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: llama-3.3-70b-versatile
     ports:
       - "8000:8000"
     depends_on:
@@ -75,6 +77,8 @@ services:
     environment:
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: llama-3.3-70b-versatile
     depends_on:
       db:
         condition: service_healthy
