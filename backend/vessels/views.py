@@ -27,7 +27,7 @@ class VesselViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def live_positions(self, request):
         limit = int(request.query_params.get('limit', 300))
-        cutoff = timezone.now() - timedelta(hours=2)
+        cutoff = timezone.now() - timedelta(hours=4)
         # Direct query: get recent positions joined with vessel
         positions = VesselPosition.objects.filter(
             timestamp__gte=cutoff
@@ -76,7 +76,7 @@ class VesselViewSet(viewsets.ModelViewSet):
         lon = float(request.query_params.get('lon', 0))
         radius_km = float(request.query_params.get('radius_km', 50))
         ref_point = Point(lon, lat, srid=4326)
-        recent_cutoff = timezone.now() - timedelta(hours=2)
+        recent_cutoff = timezone.now() - timedelta(hours=4)
         recent_positions = VesselPosition.objects.filter(
             timestamp__gte=recent_cutoff,
             position__distance_lte=(ref_point, D(km=radius_km))

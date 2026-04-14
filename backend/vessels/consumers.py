@@ -2,10 +2,7 @@ import json
 import asyncio
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.core.cache import cache
 from django.utils import timezone
-import random
-import math
 
 
 class VesselTrackingConsumer(AsyncWebsocketConsumer):
@@ -44,7 +41,7 @@ class VesselTrackingConsumer(AsyncWebsocketConsumer):
     def get_live_positions(self):
         from vessels.models import Vessel, VesselPosition
         from datetime import timedelta
-        cutoff = timezone.now() - timedelta(hours=1)
+        cutoff = timezone.now() - timedelta(hours=4)
         positions = VesselPosition.objects.filter(
             timestamp__gte=cutoff
         ).select_related('vessel').order_by('vessel_id', '-timestamp')
@@ -58,15 +55,16 @@ class VesselTrackingConsumer(AsyncWebsocketConsumer):
                     'mmsi': pos.vessel.mmsi,
                     'name': pos.vessel.name,
                     'vessel_type': pos.vessel.vessel_type,
-                    'lat': pos.latitude,
-                    'lon': pos.longitude,
-                    'speed': pos.speed_over_ground,
-                    'course': pos.course_over_ground,
-                    'heading': pos.heading,
-                    'nav_status': pos.nav_status,
+                    'lat': float(pos.latitude),
+                    'lon': float(pos.longitude),
+                    'speed': float(pos.speed_over_ground or 0),
+                    'course': float(pos.course_over_ground or 0),
+                    'heading': pos.heading or 511,
+                    'nav_status': pos.nav_status or 15,
                     'timestamp': pos.timestamp.isoformat(),
+                    'source': pos.source or 'aisstream.io',
                 })
-        return result[:200]
+        return result[:500]
 
     async def position_broadcast(self, event):
         await self.send(text_data=json.dumps(event['data']))

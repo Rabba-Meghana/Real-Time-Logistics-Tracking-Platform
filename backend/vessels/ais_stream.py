@@ -1,6 +1,7 @@
 """
 Real AIS data ingestion from aisstream.io WebSocket feed.
-Filters for US inland waterway bounding boxes.
+Wide US bounding box — covers inland waterways, Gulf Coast, and East Coast.
+Persistent reconnect loop — never falls back to simulation.
 API key from environment — never hardcoded.
 """
 import asyncio
@@ -15,128 +16,161 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# US inland waterway bounding boxes
-# aisstream.io format: [[minLat, minLon], [maxLat, maxLon]]
-INLAND_WATERWAY_BOXES = [
-    [[24.0, -98.0], [49.0, -66.0]]
+# Wide US bounding box: covers all US waters — inland, Gulf, East Coast, West Coast
+AIS_BOUNDING_BOXES = [
+    [[24.0, -125.0], [49.0, -66.0]],   # Continental US
+    [[17.0, -97.0],  [24.0, -80.0]],   # Gulf of Mexico approaches
 ]
 
+MAX_RECONNECT_DELAY = 30  # seconds
 
-async def stream_ais_positions(api_key: str, callback):
+
+def _parse_position(msg: dict) -> dict | None:
+    """Extract and validate a position dict from an aisstream.io message."""
+    meta = msg.get("MetaData", {})
+    pos = msg.get("Message", {}).get("PositionReport", {})
+
+    lat = meta.get("latitude") or pos.get("Latitude")
+    lon = meta.get("longitude") or pos.get("Longitude")
+
+    if lat is None or lon is None:
+        return None
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (TypeError, ValueError):
+        return None
+
+    if lat == 0.0 and lon == 0.0:
+        return None
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return None
+
+    mmsi = str(meta.get("MMSI") or pos.get("UserID") or "")
+    if not mmsi:
+        return None
+
+    return {
+        "mmsi": mmsi,
+        "name": (meta.get("ShipName") or "Unknown").strip(),
+        "lat": round(lat, 6),
+        "lon": round(lon, 6),
+        "speed_over_ground": round(float(pos.get("SpeedOverGround") or 0), 1),
+        "course_over_ground": round(float(pos.get("CourseOverGround") or 0), 1),
+        "heading": int(pos.get("TrueHeading") or 511),
+        "nav_status": int(pos.get("NavigationalStatus") or 15),
+        "timestamp": datetime.now(tz.utc).isoformat(),
+        "source": "aisstream.io",
+    }
+
+
+async def stream_ais_positions(api_key: str, callback, duration_seconds: int = 60):
     """
-    Connect to aisstream.io and stream real AIS positions.
+    Connect to aisstream.io with automatic reconnection.
     Calls callback(position_dict) for each valid position received.
+    Runs until duration_seconds elapses, reconnecting on any drop.
     """
     url = "wss://stream.aisstream.io/v0/stream"
     subscribe_msg = {
         "APIKey": api_key,
-        "BoundingBoxes": INLAND_WATERWAY_BOXES,
+        "BoundingBoxes": AIS_BOUNDING_BOXES,
         "FilterMessageTypes": ["PositionReport"],
     }
 
-    logger.info("Connecting to aisstream.io for real AIS data...")
+    reconnect_delay = 2
+    start_time = asyncio.get_event_loop().time()
 
-    async with websockets.connect(url, ping_interval=20, close_timeout=10, open_timeout=30) as ws:
-        await ws.send(json.dumps(subscribe_msg))
-        logger.info("Subscribed to aisstream.io — waiting for vessels...")
+    while True:
+        elapsed = asyncio.get_event_loop().time() - start_time
+        remaining = duration_seconds - elapsed
+        if remaining <= 0:
+            break
 
-        # Read first message — may be an error or confirmation
         try:
-            first_raw = await asyncio.wait_for(ws.recv(), timeout=8)
-            first_msg = json.loads(first_raw)
-            msg_type = first_msg.get("MessageType", "")
-            logger.info(f"AIS first message: {msg_type} — {str(first_msg)[:200]}")
-            # If it is a position report, process it
-            if msg_type == "PositionReport":
-                meta = first_msg.get("MetaData", {})
-                pos_data = first_msg.get("Message", {}).get("PositionReport", {})
-                lat = meta.get("latitude") or pos_data.get("Latitude")
-                lon = meta.get("longitude") or pos_data.get("Longitude")
-                if lat and lon:
-                    await callback({
-                        "mmsi": str(meta.get("MMSI", "")),
-                        "name": meta.get("ShipName", "Unknown").strip(),
-                        "lat": round(float(lat), 6), "lon": round(float(lon), 6),
-                        "speed_over_ground": round(float(pos_data.get("SpeedOverGround", 0)), 1),
-                        "course_over_ground": round(float(pos_data.get("CourseOverGround", 0)), 1),
-                        "heading": int(pos_data.get("TrueHeading", 511)),
-                        "nav_status": int(pos_data.get("NavigationalStatus", 15)),
-                        "timestamp": datetime.now(tz.utc).isoformat(), "source": "aisstream.io",
-                    })
-        except asyncio.TimeoutError:
-            logger.warning("AIS: no first message in 5s — connection may be rejected")
+            logger.info(f"Connecting to aisstream.io ({int(elapsed)}s elapsed, {int(remaining)}s remaining)...")
+            async with websockets.connect(
+                url,
+                ping_interval=20,
+                ping_timeout=15,
+                close_timeout=5,
+                open_timeout=20,
+            ) as ws:
+                await ws.send(json.dumps(subscribe_msg))
+                logger.info("Subscribed to aisstream.io — receiving real vessel positions...")
+                reconnect_delay = 2  # reset on successful connect
+
+                try:
+                    while True:
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        remaining = duration_seconds - elapsed
+                        if remaining <= 0:
+                            return
+
+                        try:
+                            raw = await asyncio.wait_for(ws.recv(), timeout=min(15, remaining))
+                        except asyncio.TimeoutError:
+                            # No data for 15s — connection may be idle, keep waiting
+                            logger.debug("AIS: no message in 15s, still connected, waiting...")
+                            continue
+
+                        try:
+                            msg = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+
+                        msg_type = msg.get("MessageType")
+                        if msg_type != "PositionReport":
+                            # Log non-position messages (auth errors, etc.)
+                            if msg_type:
+                                logger.debug(f"AIS non-position message: {msg_type} — {str(msg)[:150]}")
+                            continue
+
+                        position = _parse_position(msg)
+                        if position:
+                            await callback(position)
+
+                except websockets.ConnectionClosed as e:
+                    logger.warning(f"AIS connection closed: {e} — will reconnect in {reconnect_delay}s")
+
+        except (websockets.WebSocketException, OSError, ConnectionError) as e:
+            logger.warning(f"AIS connection error: {e} — retrying in {reconnect_delay}s")
         except Exception as e:
-            logger.warning(f"AIS first message error: {e}")
+            logger.error(f"AIS unexpected error: {e} — retrying in {reconnect_delay}s")
 
-        async for raw in ws:
-            try:
-                msg = json.loads(raw)
-                msg_type = msg.get("MessageType")
-                if msg_type != "PositionReport":
-                    continue
+        elapsed = asyncio.get_event_loop().time() - start_time
+        remaining = duration_seconds - elapsed
+        if remaining <= 0:
+            break
 
-                meta = msg.get("MetaData", {})
-                pos = msg.get("Message", {}).get("PositionReport", {})
-
-                lat = meta.get("latitude") or pos.get("Latitude")
-                lon = meta.get("longitude") or pos.get("Longitude")
-
-                if lat is None or lon is None:
-                    continue
-                if lat == 0.0 and lon == 0.0:
-                    continue
-                if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-                    continue
-
-                position = {
-                    "mmsi": str(meta.get("MMSI", pos.get("UserID", ""))),
-                    "name": meta.get("ShipName", "Unknown").strip(),
-                    "lat": round(float(lat), 6),
-                    "lon": round(float(lon), 6),
-                    "speed_over_ground": round(float(pos.get("SpeedOverGround", 0)), 1),
-                    "course_over_ground": round(float(pos.get("CourseOverGround", 0)), 1),
-                    "heading": int(pos.get("TrueHeading", 511)),
-                    "nav_status": int(pos.get("NavigationalStatus", 15)),
-                    "timestamp": datetime.now(tz.utc).isoformat(),
-                    "source": "aisstream.io",
-                }
-
-                await callback(position)
-
-            except Exception as e:
-                logger.warning(f"AIS parse error: {e}")
-                continue
+        sleep_time = min(reconnect_delay, remaining)
+        await asyncio.sleep(sleep_time)
+        reconnect_delay = min(reconnect_delay * 2, MAX_RECONNECT_DELAY)
 
 
-async def ingest_real_ais(duration_seconds: int = 60):
+async def ingest_real_ais(duration_seconds: int = 55):
     """
-    Pull real AIS positions for duration_seconds, save to DB.
+    Pull real AIS positions for duration_seconds from aisstream.io.
+    Returns list of position dicts. Never falls back to simulation.
     Called by Celery task.
     """
-    import django
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
-
     api_key = getattr(settings, "AISSTREAM_API_KEY", "") or os.environ.get("AISSTREAM_API_KEY", "")
     if not api_key:
-        logger.warning("AISSTREAM_API_KEY not set — skipping real AIS ingestion")
+        logger.error("AISSTREAM_API_KEY not set — cannot ingest real AIS data")
         return {"error": "no_api_key"}
 
     positions = []
 
     async def collect(pos):
         positions.append(pos)
+        if len(positions) % 50 == 0:
+            logger.info(f"AIS: collected {len(positions)} real positions so far...")
 
     try:
-        await asyncio.wait_for(
-            stream_ais_positions(api_key, collect),
-            timeout=duration_seconds,
-        )
-    except asyncio.TimeoutError:
-        pass  # Normal — we collect for duration then process
+        await stream_ais_positions(api_key, collect, duration_seconds=duration_seconds)
     except Exception as e:
-        logger.error(f"AIS stream error: {e}")
+        logger.error(f"AIS ingest error: {e}")
         if not positions:
             return {"error": str(e)}
 
-    logger.info(f"Collected {len(positions)} real AIS positions")
+    logger.info(f"AIS ingest complete: {len(positions)} real positions collected")
     return positions

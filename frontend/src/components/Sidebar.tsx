@@ -12,6 +12,7 @@ const NAV = [
   { href: '/voyages',  icon: '⌁', label: 'Voyages'   },
   { href: '/invoices', icon: '⊞', label: 'Invoices'  },
   { href: '/fleet',    icon: '⛵', label: 'Fleet'     },
+  { href: '/anomalies',icon: '⚠', label: 'Anomalies' },
 ];
 
 const Sidebar: Component<SidebarProps> = (props) => {

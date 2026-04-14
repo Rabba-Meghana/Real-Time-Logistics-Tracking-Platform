@@ -38,8 +38,8 @@ const LiveMap: Component = () => {
 
   const placeMarker = (pos: LivePosition) => {
     if (!map) return;
-    // Only show vessels within US bounds
-    if (pos.lat < 24 || pos.lat > 50 || pos.lon < -105 || pos.lon > -65) return;
+    // Show all vessels within broad US waters (inland, Gulf Coast, East Coast, West Coast)
+    if (pos.lat < 17 || pos.lat > 50 || pos.lon < -130 || pos.lon > -60) return;
     const isSelected = selected()?.vessel_id === pos.vessel_id;
     const icon = makeIcon(pos.vessel_type, isSelected);
     if (markers.has(pos.vessel_id)) {
@@ -55,10 +55,10 @@ const LiveMap: Component = () => {
   onMount(async () => {
     if (!mapContainer) return;
     map = L.map(mapContainer, {
-      center: [38.5, -90.0],
-      zoom: 5,
+      center: [35.0, -95.0],
+      zoom: 4,
       preferCanvas: true,
-      maxBounds: L.latLngBounds([15.0, -135.0], [60.0, -50.0]),
+      maxBounds: L.latLngBounds([14.0, -140.0], [62.0, -50.0]),
       minZoom: 3,
     });
 
@@ -108,7 +108,7 @@ const LiveMap: Component = () => {
 
   return (
     <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
-      <Header title="Live Map" subtitle="Real-time AIS vessel positions · US inland waterways" />
+      <Header title="Live Map" subtitle="Real-time AIS vessel positions · US waters via aisstream.io" />
       <div style={{ flex:'1', position:'relative', overflow:'hidden' }}>
         <div ref={mapContainer!} style={{ width:'100%', height:'100%' }} />
 
