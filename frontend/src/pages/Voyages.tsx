@@ -103,9 +103,9 @@ const Voyages: Component = () => {
                   ['Cargo', `${v().cargo_type}`],
                   ['Weight', `${v().cargo_weight_tons?.toLocaleString()} tons`],
                   ['Distance', v().distance_nm ? `${v().distance_nm!.toFixed(1)} nm` : '—'],
-                  ['Rate', `$${parseFloat(v().agreed_rate_per_ton).toFixed(2)}/ton`],
-                  ['Fuel surcharge', `$${parseFloat(v().fuel_surcharge).toLocaleString()}`],
-                  ['Port fees', `$${parseFloat(v().port_fees_agreed).toLocaleString()}`],
+                  ['Rate', `$${(+v().agreed_rate_per_ton || 0).toFixed(2)}/ton`],
+                  ['Fuel surcharge', `$${(+(v().fuel_surcharge||0)).toLocaleString()}`],
+                  ['Port fees', `$${(+(v().port_fees_agreed||0)).toLocaleString()}`],
                 ].map(([label, val]) => (
                   <div style={{ background:'var(--bg-subtle)', 'border-radius':'var(--radius-md)', padding:'10px 14px' }}>
                     <div style={{ 'font-size':'0.62rem', color:'var(--text-muted)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'3px' }}>{label}</div>

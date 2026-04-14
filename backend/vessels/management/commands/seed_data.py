@@ -364,7 +364,7 @@ class Command(BaseCommand):
                 confidence_score=random.uniform(0.72, 0.99),
                 validation_notes='LLM validation completed' if status != 'pending' else '',
                 validated_at=voyage.actual_arrival + timedelta(hours=random.randint(2, 48)) if voyage.actual_arrival else None,
-                validation_model='claude-opus-4-6',
+                validation_model='groq/llama-3.3-70b-versatile',
                 uploaded_by=fake.name(),
             ))
         Invoice.objects.bulk_create(invoices, batch_size=500, ignore_conflicts=True)
