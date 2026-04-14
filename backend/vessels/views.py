@@ -26,22 +26,42 @@ class VesselViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def live_positions(self, request):
-        vessels = self.get_queryset().prefetch_related('positions')
+        from django.db.models import OuterRef, Subquery
+        from django.utils import timezone
+        from datetime import timedelta
+
+        # Get latest position per vessel in a single query
+        cutoff = timezone.now() - timedelta(hours=2)
+        latest_pos_subq = VesselPosition.objects.filter(
+            vessel=OuterRef('pk'),
+            timestamp__gte=cutoff,
+        ).order_by('-timestamp').values('id')[:1]
+
+        vessels = self.get_queryset().annotate(
+            latest_pos_id=Subquery(latest_pos_subq)
+        ).filter(latest_pos_id__isnull=False)
+
+        pos_ids = [v.latest_pos_id for v in vessels]
+        positions = {
+            p.vessel_id: p
+            for p in VesselPosition.objects.filter(id__in=pos_ids).select_related('vessel')
+        }
+
         data = []
         for vessel in vessels:
-            pos = vessel.positions.order_by('-timestamp').first()
+            pos = positions.get(vessel.id)
             if pos:
                 data.append({
                     'vessel_id': str(vessel.id),
                     'mmsi': vessel.mmsi,
                     'name': vessel.name,
                     'vessel_type': vessel.vessel_type,
-                    'lat': pos.latitude,
-                    'lon': pos.longitude,
-                    'speed': pos.speed_over_ground,
-                    'course': pos.course_over_ground,
-                    'heading': pos.heading,
-                    'nav_status': pos.nav_status,
+                    'lat': float(pos.latitude),
+                    'lon': float(pos.longitude),
+                    'speed': float(pos.speed_over_ground or 0),
+                    'course': float(pos.course_over_ground or 0),
+                    'heading': pos.heading or 511,
+                    'nav_status': pos.nav_status or 15,
                     'timestamp': pos.timestamp.isoformat(),
                 })
         return Response(data)
