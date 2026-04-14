@@ -56,7 +56,7 @@ class VoyageListSerializer(serializers.ModelSerializer):
             'destination_port_name', 'destination_port_code',
             'status', 'cargo_type', 'cargo_weight_tons',
             'departure_date', 'estimated_arrival', 'actual_arrival',
-            'distance_nm', 'total_agreed_cost', 'is_delayed',
+            'distance_nm', 'agreed_rate_per_ton', 'total_agreed_cost', 'is_delayed',
         ]
 
         read_only_fields = ['barge_mmsi']
