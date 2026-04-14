@@ -198,7 +198,17 @@ class Command(BaseCommand):
 
         port_list = list(ports)
         vessel_list = list(vessels)
-        cargo_types = list(CARGO_WEIGHTS.keys())
+        cargo_types = (
+    ['grain'] * 22 +       # 22% - largest commodity on Mississippi
+    ['aggregate'] * 18 +   # 18% - sand, gravel, crushed stone
+    ['coal'] * 16 +        # 16% - power plant deliveries
+    ['petroleum'] * 14 +   # 14% - fuel transport
+    ['chemicals'] * 12 +   # 12% - fertilizer precursors
+    ['steel'] * 8 +        # 8%  - manufactured goods
+    ['fertilizer'] * 7 +   # 7%  - agricultural inputs
+    ['containers'] * 2 +   # 2%  - rare on inland waterways
+    ['other'] * 1          # 1%  - misc
+)
         statuses = ['completed', 'completed', 'completed', 'completed', 'active', 'active', 'delayed', 'planned']
 
         now = timezone.now()
