@@ -8,6 +8,8 @@ const Invoices: Component = () => {
   const [statusFilter, setStatusFilter] = createSignal('');
   const [selected, setSelected] = createSignal<Invoice | null>(null);
   const [actionLoading, setActionLoading] = createSignal(false);
+  const [llmSummary, setLlmSummary] = createSignal<string | null>(null);
+  const [llmLoading, setLlmLoading] = createSignal(false);
 
   const [invoices, { refetch }] = createResource(
     () => statusFilter(),
@@ -36,6 +38,41 @@ const Invoices: Component = () => {
     refetch(); setActionLoading(false);
   };
 
+  const openInvoice = async (inv: Invoice) => {
+    setSelected(inv);
+    setLlmSummary(null);
+    setLlmLoading(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `Summarize this freight invoice in 2-3 sentences for an operations manager. Be concise and highlight any risks.
+
+Invoice: ${inv.invoice_number}
+Vendor: ${inv.vendor_name}
+Voyage: ${inv.voyage_number}
+Amount: $${parseFloat(inv.total_amount).toLocaleString()}
+LLM Confidence: ${Math.round((inv.confidence_score ?? 0) * 100)}%
+Status: ${inv.validation_status}
+Discrepancies: ${inv.discrepancy_count}
+Notes: ${inv.validation_notes || 'none'}`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text ?? '';
+      setLlmSummary(text);
+    } catch {
+      setLlmSummary('Summary unavailable.');
+    }
+    setLlmLoading(false);
+  };
+
   const confBar = (score: number | null) => {
     if (score == null) return null;
     const pct = Math.round(score * 100);
@@ -55,7 +92,6 @@ const Invoices: Component = () => {
       <Header title="Invoice Validation" subtitle="LLM-powered invoice validation against voyage records" />
       <div class="page-content fade-in" style={{ 'overflow-y':'auto' }}>
 
-        {/* Stats strip */}
         <Show when={stats()}>
           <div style={{ display:'flex', gap:'12px', 'margin-bottom':'16px', 'flex-wrap':'wrap' }}>
             {[
@@ -73,7 +109,12 @@ const Invoices: Component = () => {
         </Show>
 
         <div style={{ display:'flex', gap:'10px', 'margin-bottom':'14px' }}>
-          <select class="input" style={{ width:'200px', 'font-size':'0.83rem' }} value={statusFilter()} onChange={e => setStatusFilter(e.currentTarget.value)}>
+          <select
+            class="input"
+            style={{ width:'200px', 'font-size':'0.83rem' }}
+            value={statusFilter()}
+            onInput={e => setStatusFilter(e.currentTarget.value)}
+          >
             <option value="">All statuses</option>
             {['pending','validating','valid','invalid','needs_review','approved','rejected'].map(s => (
               <option value={s}>{s.replace(/_/g,' ')}</option>
@@ -95,7 +136,7 @@ const Invoices: Component = () => {
                 <tbody>
                   <For each={(invoices() as any)?.results ?? invoices()}>
                     {(inv: Invoice) => (
-                      <tr onClick={() => setSelected(inv)}>
+                      <tr onClick={() => openInvoice(inv)}>
                         <td><code style={{ 'font-family':'var(--font-mono)', 'font-size':'0.76rem', color:'var(--accent)' }}>{inv.invoice_number}</code></td>
                         <td style={{ 'font-size':'0.82rem' }}>{inv.vendor_name}</td>
                         <td style={{ 'font-size':'0.76rem', color:'var(--text-secondary)', 'font-family':'var(--font-mono)' }}>{inv.voyage_number}</td>
@@ -118,12 +159,11 @@ const Invoices: Component = () => {
         </div>
       </div>
 
-      {/* Centered modal popup */}
       <Show when={selected()}>
         {(inv) => (
           <>
             <div onClick={() => setSelected(null)} style={{ position:'fixed', inset:'0', 'z-index':'1000', background:'rgba(0,0,0,0.4)', 'backdrop-filter':'blur(4px)' }}/>
-            <div class="fade-in" style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', 'z-index':'1001', background:'var(--bg-card)', 'border-radius':'var(--radius-xl)', padding:'32px 36px', width:'540px', 'max-height':'82vh', 'overflow-y':'auto', 'box-shadow':'var(--shadow-lg)', border:'1px solid var(--border)' }}>
+            <div class="fade-in" style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', 'z-index':'1001', background:'var(--bg-card)', 'border-radius':'var(--radius-xl)', padding:'32px 36px', width:'560px', 'max-height':'85vh', 'overflow-y':'auto', 'box-shadow':'var(--shadow-lg)', border:'1px solid var(--border)' }}>
               <div style={{ display:'flex', 'justify-content':'space-between', 'align-items':'flex-start', 'margin-bottom':'20px' }}>
                 <div>
                   <code style={{ 'font-family':'var(--font-mono)', color:'var(--accent)', 'font-size':'0.95rem' }}>{inv().invoice_number}</code>
@@ -134,6 +174,14 @@ const Invoices: Component = () => {
                   <span class={`badge badge-${inv().validation_status}`} style={{ 'font-size':'0.76rem' }}>{inv().validation_status.replace(/_/g,' ')}</span>
                   <button onClick={() => setSelected(null)} style={{ background:'none', border:'1px solid var(--border)', cursor:'pointer', color:'var(--text-muted)', 'border-radius':'50%', width:'30px', height:'30px', display:'flex', 'align-items':'center', 'justify-content':'center', 'font-size':'1.1rem' }}>×</button>
                 </div>
+              </div>
+
+              {/* LLM Summary */}
+              <div style={{ background:'var(--accent-subtle)', border:'1px solid var(--border)', 'border-radius':'var(--radius-lg)', padding:'14px 18px', 'margin-bottom':'18px' }}>
+                <div style={{ 'font-size':'0.65rem', color:'var(--accent)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'6px', 'font-weight':'700' }}>⚡ AI Summary</div>
+                <Show when={!llmLoading()} fallback={<div style={{ display:'flex', 'align-items':'center', gap:'8px', color:'var(--text-muted)', 'font-size':'0.82rem' }}><div class="spinner" style={{ width:'14px', height:'14px' }}/> Analyzing invoice…</div>}>
+                  <div style={{ 'font-size':'0.82rem', color:'var(--text-primary)', 'line-height':'1.55' }}>{llmSummary()}</div>
+                </Show>
               </div>
 
               {/* LLM confidence */}
@@ -199,7 +247,6 @@ const Invoices: Component = () => {
                 </div>
               </Show>
 
-              {/* Actions */}
               <Show when={['needs_review','invalid','valid'].includes(inv().validation_status)}>
                 <div style={{ display:'flex', gap:'8px' }}>
                   <button class="btn btn-primary" style={{ flex:'1', 'justify-content':'center' }} disabled={actionLoading()} onClick={() => approve(inv())}>

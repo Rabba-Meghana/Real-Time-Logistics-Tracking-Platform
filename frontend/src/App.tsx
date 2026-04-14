@@ -8,7 +8,9 @@ import Invoices from './pages/Invoices';
 import { Anomalies, Fleet } from './pages/Anomalies';
 import './styles/global.css';
 
-const [theme, setTheme] = createSignal<'light' | 'dark'>('light');
+const savedTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'light' | 'dark') || 'light';
+if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+const [theme, setTheme] = createSignal<'light' | 'dark'>(savedTheme);
 
 const toggleTheme = () => {
   const next = theme() === 'light' ? 'dark' : 'light';

@@ -7,12 +7,11 @@ interface SidebarProps {
 }
 
 const NAV = [
-  { href: '/',          icon: '◈', label: 'Dashboard'  },
-  { href: '/map',       icon: '⊕', label: 'Live Map'   },
-  { href: '/voyages',   icon: '⌁', label: 'Voyages'    },
-  { href: '/invoices',  icon: '⊞', label: 'Invoices'   },
-  { href: '/anomalies', icon: '⚡', label: 'Anomalies'  },
-  { href: '/fleet',     icon: '⛵', label: 'Fleet'      },
+  { href: '/',         icon: '◈', label: 'Dashboard' },
+  { href: '/map',      icon: '⊕', label: 'Live Map'  },
+  { href: '/voyages',  icon: '⌁', label: 'Voyages'   },
+  { href: '/invoices', icon: '⊞', label: 'Invoices'  },
+  { href: '/fleet',    icon: '⛵', label: 'Fleet'     },
 ];
 
 const Sidebar: Component<SidebarProps> = (props) => {
@@ -20,7 +19,6 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
   return (
     <nav class="sidebar">
-      {/* Logo */}
       <div style={{ display:'flex', 'align-items':'center', gap:'10px', padding:'20px 16px 16px', 'border-bottom':'1px solid var(--border)' }}>
         <span style={{ 'font-size':'1.5rem' }}>⚓</span>
         <div>
@@ -29,7 +27,6 @@ const Sidebar: Component<SidebarProps> = (props) => {
         </div>
       </div>
 
-      {/* Nav */}
       <div style={{ flex:'1', 'overflow-y':'auto', padding:'10px 8px', display:'flex', 'flex-direction':'column', gap:'2px' }}>
         {NAV.map((item) => {
           const isActive = () => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href);
@@ -37,17 +34,12 @@ const Sidebar: Component<SidebarProps> = (props) => {
             <A
               href={item.href}
               style={{
-                display: 'flex',
-                'align-items': 'center',
-                gap: '9px',
-                padding: '8px 10px',
-                'border-radius': 'var(--radius-md)',
+                display: 'flex', 'align-items': 'center', gap: '9px',
+                padding: '8px 10px', 'border-radius': 'var(--radius-md)',
                 color: isActive() ? 'var(--accent)' : 'var(--text-secondary)',
                 background: isActive() ? 'var(--accent-subtle)' : 'transparent',
-                'text-decoration': 'none',
-                'font-size': '0.855rem',
-                'font-weight': '500',
-                transition: 'all var(--transition)',
+                'text-decoration': 'none', 'font-size': '0.855rem',
+                'font-weight': '500', transition: 'all var(--transition)',
               }}
             >
               <span style={{ width:'18px', 'text-align':'center', 'font-size':'0.95rem' }}>{item.icon}</span>
@@ -57,7 +49,6 @@ const Sidebar: Component<SidebarProps> = (props) => {
         })}
       </div>
 
-      {/* Footer */}
       <div style={{ padding:'10px 8px 14px', 'border-top':'1px solid var(--border)' }}>
         <button
           onClick={props.onThemeToggle}
