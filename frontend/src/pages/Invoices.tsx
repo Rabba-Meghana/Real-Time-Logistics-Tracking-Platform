@@ -20,207 +20,203 @@ const Invoices: Component = () => {
 
   const [stats] = createResource(() => invoicesApi.dashboardStats().then(r => r.data));
 
-  const approve = async (invoice: Invoice) => {
+  const approve = async (inv: Invoice) => {
     setActionLoading(true);
-    await invoicesApi.approve(invoice.id, 'operations-team');
-    refetch();
-    setSelected(null);
-    setActionLoading(false);
+    await invoicesApi.approve(inv.id, 'operations-team');
+    refetch(); setSelected(null); setActionLoading(false);
+  };
+  const reject = async (inv: Invoice) => {
+    setActionLoading(true);
+    await invoicesApi.reject(inv.id);
+    refetch(); setSelected(null); setActionLoading(false);
+  };
+  const revalidate = async (inv: Invoice) => {
+    setActionLoading(true);
+    await invoicesApi.revalidate(inv.id);
+    refetch(); setActionLoading(false);
   };
 
-  const reject = async (invoice: Invoice) => {
-    setActionLoading(true);
-    await invoicesApi.reject(invoice.id);
-    refetch();
-    setSelected(null);
-    setActionLoading(false);
-  };
-
-  const revalidate = async (invoice: Invoice) => {
-    setActionLoading(true);
-    await invoicesApi.revalidate(invoice.id);
-    refetch();
-    setActionLoading(false);
-  };
-
-  const confidenceBar = (score: number | null) => {
+  const confBar = (score: number | null) => {
     if (score == null) return null;
     const pct = Math.round(score * 100);
     const color = pct >= 85 ? 'var(--status-active)' : pct >= 70 ? 'var(--gold-500)' : 'var(--status-delayed)';
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <div style={{ flex: '1', height: '4px', background: 'var(--border)', borderRadius: '2px' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '2px', transition: 'width 0.6s ease' }} />
+      <div style={{ display:'flex', 'align-items':'center', gap:'6px' }}>
+        <div style={{ flex:'1', height:'4px', background:'var(--border)', 'border-radius':'2px' }}>
+          <div style={{ height:'100%', width:`${pct}%`, background:color, 'border-radius':'2px', transition:'width 0.6s ease' }}/>
         </div>
-        <span style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', minWidth: '32px' }}>{pct}%</span>
+        <span style={{ 'font-size':'0.70rem', 'font-family':'var(--font-mono)', color:'var(--text-muted)', 'min-width':'30px' }}>{pct}%</span>
       </div>
     );
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
       <Header title="Invoice Validation" subtitle="LLM-powered invoice validation against voyage records" />
-      <div class="page-content fade-in" style={{ display: 'flex', gap: '20px', overflow: 'hidden', flex: '1', padding: '24px 28px' }}>
+      <div class="page-content fade-in" style={{ 'overflow-y':'auto' }}>
 
-        {/* Left: table */}
-        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-          {/* Stats strip */}
-          <Show when={stats()}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexShrink: '0' }}>
-              {[
-                ['Total', stats()!.total_invoices, ''],
-                ['Needs Review', stats()!.needs_review, 'var(--status-delayed)'],
-                ['Avg Confidence', `${Math.round((stats()!.avg_confidence_score ?? 0) * 100)}%`, 'var(--gold-600)'],
-                ['Total Value', `$${((stats()!.total_invoice_value ?? 0) / 1000000).toFixed(2)}M`, ''],
-              ].map(([label, val, color]) => (
-                <div class="card" style={{ padding: '10px 16px', flexShrink: '0' }}>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: color || 'var(--text-primary)' }}>{val}</div>
-                </div>
-              ))}
-            </div>
-          </Show>
-
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexShrink: '0' }}>
-            <select class="input" style={{ width: '190px', fontSize: '0.83rem' }} value={statusFilter()} onChange={e => setStatusFilter(e.currentTarget.value)}>
-              <option value="">All statuses</option>
-              {['pending','validating','valid','invalid','needs_review','approved','rejected'].map(s => (
-                <option value={s}>{s.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-            <button class="btn btn-primary btn-sm" onClick={() => refetch()}>Refresh</button>
+        {/* Stats strip */}
+        <Show when={stats()}>
+          <div style={{ display:'flex', gap:'12px', 'margin-bottom':'16px', 'flex-wrap':'wrap' }}>
+            {[
+              ['Total', stats()!.total_invoices, ''],
+              ['Needs Review', stats()!.needs_review, 'var(--status-delayed)'],
+              ['Avg Confidence', `${Math.round((stats()!.avg_confidence_score ?? 0)*100)}%`, 'var(--gold-600)'],
+              ['Total Value', `$${((stats()!.total_invoice_value ?? 0)/1000000).toFixed(2)}M`, ''],
+            ].map(([label, val, color]) => (
+              <div class="card" style={{ padding:'12px 18px', 'flex-shrink':'0' }}>
+                <div style={{ 'font-size':'0.65rem', color:'var(--text-muted)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'2px' }}>{label}</div>
+                <div style={{ 'font-family':'var(--font-display)', 'font-size':'1.4rem', color: color || 'var(--text-primary)' }}>{val}</div>
+              </div>
+            ))}
           </div>
+        </Show>
 
-          <div class="card" style={{ flex: '1', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div class="table-wrap" style={{ flex: '1', overflow: 'auto' }}>
-              <Show when={invoices.loading}>
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}><div class="spinner" /></div>
-              </Show>
-              <Show when={!invoices.loading && invoices()}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Invoice #</th>
-                      <th>Vendor</th>
-                      <th>Voyage</th>
-                      <th>Total</th>
-                      <th>Confidence</th>
-                      <th>Discrepancies</th>
-                      <th>Validated</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={invoices()?.results ?? invoices()}>
-                      {(inv: Invoice) => (
-                        <tr onClick={() => setSelected(inv)} style={selected()?.id === inv.id ? { background: 'var(--accent-subtle)' } : {}}>
-                          <td><code style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{inv.invoice_number}</code></td>
-                          <td style={{ fontSize: '0.83rem' }}>{inv.vendor_name}</td>
-                          <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{inv.voyage_number}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>${parseFloat(inv.total_amount).toLocaleString()}</td>
-                          <td style={{ minWidth: '120px' }}>{confidenceBar(inv.confidence_score)}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            {inv.discrepancy_count > 0
-                              ? <span class={`badge badge-${inv.has_critical_discrepancy ? 'critical' : 'high'}`}>{inv.discrepancy_count}</span>
-                              : <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>none</span>
-                            }
-                          </td>
-                          <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                            {inv.validated_at ? format(parseISO(inv.validated_at), 'MMM d, HH:mm') : '—'}
-                          </td>
-                          <td><span class={`badge badge-${inv.validation_status}`}>{inv.validation_status.replace(/_/g, ' ')}</span></td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </Show>
-            </div>
-          </div>
+        <div style={{ display:'flex', gap:'10px', 'margin-bottom':'14px' }}>
+          <select class="input" style={{ width:'200px', 'font-size':'0.83rem' }} value={statusFilter()} onChange={e => setStatusFilter(e.currentTarget.value)}>
+            <option value="">All statuses</option>
+            {['pending','validating','valid','invalid','needs_review','approved','rejected'].map(s => (
+              <option value={s}>{s.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+          <button class="btn btn-primary btn-sm" onClick={() => refetch()}>Refresh</button>
         </div>
 
-        {/* Detail panel */}
-        <Show when={selected()}>
-          {(invoice) => (
-            <div class="card fade-in" style={{ width: '340px', flexShrink: '0', overflow: 'auto', alignSelf: 'flex-start', maxHeight: '100%' }}>
-              <div class="card-header">
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem' }}>Invoice Detail</span>
-                <button class="btn btn-ghost btn-sm" onClick={() => setSelected(null)}>×</button>
-              </div>
-              <div class="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{invoice().invoice_number}</code>
-                  <span class={`badge badge-${invoice().validation_status}`}>{invoice().validation_status.replace(/_/g, ' ')}</span>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>LLM Confidence</div>
-                  {confidenceBar(invoice().confidence_score)}
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Model: {invoice().validation_model || 'rule-based'}</div>
-                </div>
-
-                {invoice().validation_notes && (
-                  <div style={{ background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: '0.80rem', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
-                    {invoice().validation_notes}
-                  </div>
-                )}
-
-                <Show when={invoice().discrepancies?.length > 0}>
-                  <div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
-                      Discrepancies ({invoice().discrepancies.length})
-                    </div>
-                    <For each={invoice().discrepancies as Discrepancy[]}>
-                      {(d) => (
-                        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '0.80rem', fontWeight: '600', textTransform: 'capitalize' }}>{d.field.replace(/_/g, ' ')}</span>
-                            <span class={`badge badge-${d.severity}`}>{d.severity}</span>
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '3px' }}>Invoice: <code style={{ fontFamily: 'var(--font-mono)' }}>{d.invoice_value}</code></div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Expected: <code style={{ fontFamily: 'var(--font-mono)' }}>{d.voyage_value}</code></div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '5px' }}>{d.description}</div>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </Show>
-
-                <Show when={['needs_review', 'invalid', 'valid'].includes(invoice().validation_status)}>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <button
-                      class="btn btn-primary btn-sm"
-                      style={{ flex: '1', justifyContent: 'center' }}
-                      disabled={actionLoading()}
-                      onClick={() => approve(invoice())}
-                    >
-                      {actionLoading() ? '…' : '✓ Approve'}
-                    </button>
-                    <button
-                      class="btn btn-ghost btn-sm"
-                      style={{ flex: '1', justifyContent: 'center', borderColor: 'var(--status-delayed)', color: 'var(--status-delayed)' }}
-                      disabled={actionLoading()}
-                      onClick={() => reject(invoice())}
-                    >
-                      ✗ Reject
-                    </button>
-                  </div>
-                  <button
-                    class="btn btn-ghost btn-sm"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                    disabled={actionLoading()}
-                    onClick={() => revalidate(invoice())}
-                  >
-                    ↻ Re-validate
-                  </button>
-                </Show>
-              </div>
+        <div class="card">
+          <Show when={invoices.loading}>
+            <div style={{ display:'flex', 'justify-content':'center', padding:'60px' }}><div class="spinner"/></div>
+          </Show>
+          <Show when={!invoices.loading && invoices()}>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Invoice #</th><th>Vendor</th><th>Voyage</th><th>Total</th><th>Confidence</th><th>Discrepancies</th><th>Validated</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  <For each={(invoices() as any)?.results ?? invoices()}>
+                    {(inv: Invoice) => (
+                      <tr onClick={() => setSelected(inv)}>
+                        <td><code style={{ 'font-family':'var(--font-mono)', 'font-size':'0.76rem', color:'var(--accent)' }}>{inv.invoice_number}</code></td>
+                        <td style={{ 'font-size':'0.82rem' }}>{inv.vendor_name}</td>
+                        <td style={{ 'font-size':'0.76rem', color:'var(--text-secondary)', 'font-family':'var(--font-mono)' }}>{inv.voyage_number}</td>
+                        <td style={{ 'font-family':'var(--font-mono)', 'font-size':'0.82rem' }}>${parseFloat(inv.total_amount).toLocaleString()}</td>
+                        <td style={{ 'min-width':'120px' }}>{confBar(inv.confidence_score)}</td>
+                        <td style={{ 'text-align':'center' }}>
+                          {inv.discrepancy_count > 0
+                            ? <span class={`badge badge-${inv.has_critical_discrepancy ? 'critical' : 'high'}`}>{inv.discrepancy_count}</span>
+                            : <span style={{ color:'var(--text-muted)', 'font-size':'0.76rem' }}>none</span>}
+                        </td>
+                        <td style={{ 'font-size':'0.76rem', color:'var(--text-muted)' }}>{inv.validated_at ? format(parseISO(inv.validated_at), 'MMM d, HH:mm') : '—'}</td>
+                        <td><span class={`badge badge-${inv.validation_status}`}>{inv.validation_status.replace(/_/g,' ')}</span></td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
             </div>
-          )}
-        </Show>
+          </Show>
+        </div>
       </div>
+
+      {/* Centered modal popup */}
+      <Show when={selected()}>
+        {(inv) => (
+          <>
+            <div onClick={() => setSelected(null)} style={{ position:'fixed', inset:'0', 'z-index':'1000', background:'rgba(0,0,0,0.4)', 'backdrop-filter':'blur(4px)' }}/>
+            <div class="fade-in" style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', 'z-index':'1001', background:'var(--bg-card)', 'border-radius':'var(--radius-xl)', padding:'32px 36px', width:'540px', 'max-height':'82vh', 'overflow-y':'auto', 'box-shadow':'var(--shadow-lg)', border:'1px solid var(--border)' }}>
+              <div style={{ display:'flex', 'justify-content':'space-between', 'align-items':'flex-start', 'margin-bottom':'20px' }}>
+                <div>
+                  <code style={{ 'font-family':'var(--font-mono)', color:'var(--accent)', 'font-size':'0.95rem' }}>{inv().invoice_number}</code>
+                  <div style={{ 'font-family':'var(--font-display)', 'font-size':'1.2rem', 'margin-top':'4px' }}>{inv().vendor_name}</div>
+                  <div style={{ 'font-size':'0.74rem', color:'var(--text-muted)', 'margin-top':'2px' }}>Voyage: {inv().voyage_number}</div>
+                </div>
+                <div style={{ display:'flex', 'align-items':'center', gap:'10px' }}>
+                  <span class={`badge badge-${inv().validation_status}`} style={{ 'font-size':'0.76rem' }}>{inv().validation_status.replace(/_/g,' ')}</span>
+                  <button onClick={() => setSelected(null)} style={{ background:'none', border:'1px solid var(--border)', cursor:'pointer', color:'var(--text-muted)', 'border-radius':'50%', width:'30px', height:'30px', display:'flex', 'align-items':'center', 'justify-content':'center', 'font-size':'1.1rem' }}>×</button>
+                </div>
+              </div>
+
+              {/* LLM confidence */}
+              <div style={{ background:'var(--bg-subtle)', 'border-radius':'var(--radius-lg)', padding:'16px 20px', 'margin-bottom':'20px' }}>
+                <div style={{ display:'flex', 'justify-content':'space-between', 'align-items':'center', 'margin-bottom':'10px' }}>
+                  <div>
+                    <div style={{ 'font-size':'0.68rem', color:'var(--text-muted)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'2px' }}>LLM Confidence Score</div>
+                    <div style={{ 'font-family':'var(--font-display)', 'font-size':'1.6rem', color: (inv().confidence_score ?? 0) >= 0.85 ? 'var(--status-active)' : (inv().confidence_score ?? 0) >= 0.70 ? 'var(--gold-600)' : 'var(--status-delayed)' }}>
+                      {Math.round((inv().confidence_score ?? 0) * 100)}%
+                    </div>
+                  </div>
+                  <div style={{ 'text-align':'right' }}>
+                    <div style={{ 'font-size':'0.65rem', color:'var(--text-muted)', 'margin-bottom':'2px' }}>Model</div>
+                    <code style={{ 'font-family':'var(--font-mono)', 'font-size':'0.76rem', color:'var(--accent)' }}>{inv().validation_model || 'rule-based'}</code>
+                  </div>
+                </div>
+                {confBar(inv().confidence_score)}
+                {inv().validation_notes && (
+                  <div style={{ 'margin-top':'10px', 'font-size':'0.78rem', color:'var(--text-secondary)', 'line-height':'1.5' }}>{inv().validation_notes}</div>
+                )}
+              </div>
+
+              {/* Financials */}
+              <div style={{ display:'grid', 'grid-template-columns':'1fr 1fr 1fr', gap:'10px', 'margin-bottom':'20px' }}>
+                {[['Subtotal', `$${parseFloat(inv().subtotal).toLocaleString()}`],
+                  ['Tax', `$${parseFloat(inv().tax_amount).toLocaleString()}`],
+                  ['Total', `$${parseFloat(inv().total_amount).toLocaleString()}`]
+                ].map(([label, val]) => (
+                  <div style={{ background:'var(--bg-subtle)', 'border-radius':'var(--radius-md)', padding:'10px 14px' }}>
+                    <div style={{ 'font-size':'0.62rem', color:'var(--text-muted)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'3px' }}>{label}</div>
+                    <div style={{ 'font-family':'var(--font-mono)', 'font-size':'0.92rem', color:'var(--text-primary)', 'font-weight':'600' }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Discrepancies */}
+              <Show when={inv().discrepancies?.length > 0}>
+                <div style={{ 'margin-bottom':'20px' }}>
+                  <div style={{ 'font-size':'0.68rem', color:'var(--text-muted)', 'text-transform':'uppercase', 'letter-spacing':'0.07em', 'margin-bottom':'10px', 'font-weight':'700' }}>
+                    Discrepancies Found ({inv().discrepancies.length})
+                  </div>
+                  <For each={inv().discrepancies as Discrepancy[]}>
+                    {(d) => (
+                      <div style={{ background:'var(--bg-subtle)', border:`1px solid ${d.severity === 'critical' ? 'var(--status-delayed-bg)' : 'var(--border)'}`, 'border-radius':'var(--radius-md)', padding:'12px 16px', 'margin-bottom':'8px' }}>
+                        <div style={{ display:'flex', 'justify-content':'space-between', 'margin-bottom':'8px' }}>
+                          <span style={{ 'font-size':'0.84rem', 'font-weight':'600', 'text-transform':'capitalize' }}>{d.field.replace(/_/g,' ')}</span>
+                          <span class={`badge badge-${d.severity}`}>{d.severity}</span>
+                        </div>
+                        <div style={{ display:'grid', 'grid-template-columns':'1fr 1fr', gap:'8px', 'margin-bottom':'6px' }}>
+                          <div style={{ 'font-size':'0.74rem' }}>
+                            <span style={{ color:'var(--text-muted)' }}>Invoice: </span>
+                            <code style={{ 'font-family':'var(--font-mono)', color:'var(--status-delayed)' }}>{d.invoice_value}</code>
+                          </div>
+                          <div style={{ 'font-size':'0.74rem' }}>
+                            <span style={{ color:'var(--text-muted)' }}>Expected: </span>
+                            <code style={{ 'font-family':'var(--font-mono)', color:'var(--status-active)' }}>{d.voyage_value}</code>
+                          </div>
+                        </div>
+                        <div style={{ 'font-size':'0.72rem', color:'var(--text-secondary)' }}>{d.description}</div>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+
+              {/* Actions */}
+              <Show when={['needs_review','invalid','valid'].includes(inv().validation_status)}>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button class="btn btn-primary" style={{ flex:'1', 'justify-content':'center' }} disabled={actionLoading()} onClick={() => approve(inv())}>
+                    {actionLoading() ? '…' : '✓ Approve'}
+                  </button>
+                  <button class="btn btn-ghost" style={{ flex:'1', 'justify-content':'center', 'border-color':'var(--status-delayed)', color:'var(--status-delayed)' }} disabled={actionLoading()} onClick={() => reject(inv())}>
+                    ✗ Reject
+                  </button>
+                  <button class="btn btn-ghost" style={{ 'justify-content':'center', padding:'8px 16px' }} disabled={actionLoading()} onClick={() => revalidate(inv())}>
+                    ↻
+                  </button>
+                </div>
+              </Show>
+            </div>
+          </>
+        )}
+      </Show>
     </div>
   );
 };
