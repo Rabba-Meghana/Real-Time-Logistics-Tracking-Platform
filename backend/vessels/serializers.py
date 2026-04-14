@@ -27,19 +27,24 @@ class VesselSerializer(serializers.ModelSerializer):
         ]
 
     def get_latest_position(self, obj):
+        # Try Redis cache first (populated by real AIS ingestion)
         cache_key = f'vessel:{obj.mmsi}:latest_position'
         cached = cache.get(cache_key)
         if cached:
             try:
                 data = json.loads(cached)
-                # Normalize to always have latitude/longitude keys
                 if 'lat' in data and 'latitude' not in data:
                     data['latitude'] = data['lat']
                     data['longitude'] = data['lon']
                 return data
             except Exception:
                 pass
-        pos = obj.positions.order_by('-timestamp').first()
+        # Use prefetched positions if available (avoids N+1)
+        prefetched = getattr(obj, 'prefetched_positions', None)
+        if prefetched:
+            pos = prefetched[0] if prefetched else None
+        else:
+            pos = obj.positions.order_by('-timestamp').first()
         if pos:
             return VesselPositionSerializer(pos).data
         return None

@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status
+from django.db import models
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -17,7 +18,13 @@ from .serializers import (
 
 
 class VesselViewSet(viewsets.ModelViewSet):
-    queryset = Vessel.objects.filter(is_active=True)
+    queryset = Vessel.objects.filter(is_active=True).prefetch_related(
+        models.Prefetch(
+            'positions',
+            queryset=VesselPosition.objects.order_by('-timestamp'),
+            to_attr='prefetched_positions'
+        )
+    ).annotate(last_seen=Max('positions__timestamp')).order_by('-last_seen')
     serializer_class = VesselSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend]
