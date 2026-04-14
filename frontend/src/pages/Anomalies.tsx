@@ -107,17 +107,18 @@ export const Fleet: Component = () => {
     return allVessels;
   });
 
-  // Auto-refresh every 30s to show live position updates
-  onMount(() => {
-    const interval = setInterval(() => refetch(), 30000);
-    onCleanup(() => clearInterval(interval));
-  });
+  // Manual refresh only — no auto-polling to avoid constant loading
 
   return (
     <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
       <Header title="Fleet" subtitle={`Vessel registry and real-time status · ${vessels()?.length ?? 0} vessels`} />
       <div class="page-content fade-in">
         <div class="card">
+          <div style={{ display:'flex', 'justify-content':'flex-end', 'margin-bottom':'12px' }}>
+            <button class="btn btn-ghost" onClick={() => refetch()} style={{ display:'flex', 'align-items':'center', gap:'6px', 'font-size':'0.82rem' }}>
+              ↻ Refresh
+            </button>
+          </div>
           <Show when={vessels.loading}>
             <div style={{ display:'flex', 'justify-content':'center', padding:'60px' }}><div class="spinner"/></div>
           </Show>
@@ -125,7 +126,7 @@ export const Fleet: Component = () => {
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Name</th><th>MMSI</th><th>Type</th><th>Flag</th><th>Length</th><th>Gross Tonnage</th><th>Last Position</th><th>Speed</th><th>Status</th></tr>
+                  <tr><th>Name</th><th>MMSI</th><th>Type</th><th>Flag</th><th>Last Position</th><th>Speed</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   <For each={vessels()!}>
@@ -139,8 +140,6 @@ export const Fleet: Component = () => {
                           <td><code style={{ 'font-size':'0.74rem', 'font-family':'var(--font-mono)', color:'var(--accent)' }}>{v.mmsi}</code></td>
                           <td><span class={`badge badge-${v.vessel_type}`}>{v.vessel_type}</span></td>
                           <td style={{ 'font-family':'var(--font-mono)', 'font-size':'0.82rem' }}>{v.flag}</td>
-                          <td style={{ 'font-family':'var(--font-mono)', 'font-size':'0.82rem' }}>{v.length ? `${v.length.toFixed(0)}m` : '—'}</td>
-                          <td style={{ 'font-family':'var(--font-mono)', 'font-size':'0.82rem' }}>{v.gross_tonnage?.toLocaleString() ?? '—'}</td>
                           <td style={{ 'font-size':'0.76rem', color:'var(--text-secondary)', 'font-family':'var(--font-mono)' }}>
                             {lat && lon ? `${Number(lat).toFixed(3)}°, ${Number(lon).toFixed(3)}°` : '—'}
                           </td>
