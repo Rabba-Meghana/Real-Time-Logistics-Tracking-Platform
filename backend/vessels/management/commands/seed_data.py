@@ -162,7 +162,6 @@ class Command(BaseCommand):
 
     def _seed_vessels(self, count):
         from vessels.models import Vessel
-        Vessel.objects.all().delete()
         vessel_types = ['barge', 'barge', 'barge', 'barge', 'barge', 'cargo', 'tanker', 'tug']
         flags = ['US', 'US', 'US', 'US', 'US', 'US', 'US']
         vessels = []
@@ -194,8 +193,6 @@ class Command(BaseCommand):
 
     def _seed_voyages(self, count, vessels, ports):
         from voyages.models import Voyage, VoyageEvent
-        Voyage.objects.all().delete()
-        VoyageEvent.objects.all().delete()
 
         port_list = list(ports)
         vessel_list = list(vessels)
@@ -291,7 +288,6 @@ class Command(BaseCommand):
 
     def _seed_positions(self, vessels, positions_per_vessel):
         from vessels.models import VesselPosition
-        VesselPosition.objects.all().delete()
         total = 0
         batch = []
         now = timezone.now()
@@ -338,7 +334,6 @@ class Command(BaseCommand):
 
     def _seed_invoices(self, voyages):
         from invoices.models import Invoice
-        Invoice.objects.all().delete()
         completed = [v for v in voyages if v.status == 'completed']
         sample = random.sample(completed, min(2500, len(completed)))
         statuses = ['valid', 'valid', 'valid', 'needs_review', 'invalid', 'approved', 'approved']
