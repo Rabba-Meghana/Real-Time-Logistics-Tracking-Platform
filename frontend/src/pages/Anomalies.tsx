@@ -1,4 +1,4 @@
-import { Component, createResource, createSignal, For, Show, onMount, onCleanup } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, onCleanup } from 'solid-js';
 import { vesselsApi } from '../api';
 import Header from '../components/Header';
 import type { AnomalyLog, Vessel } from '../types';
@@ -92,26 +92,40 @@ export const Anomalies: Component = () => {
 };
 
 export const Fleet: Component = () => {
-  const [vessels, { refetch }] = createResource(async () => {
-    // Fetch all vessels across pages
-    let allVessels: Vessel[] = [];
-    let page = 1;
-    while (true) {
-      const r = await vesselsApi.list({ page: String(page), page_size: '200' });
-      const data = r.data;
-      const results = (data?.results ?? data) as Vessel[];
-      allVessels = [...allVessels, ...results];
-      if (!data?.next || results.length < 200) break;
-      page++;
+  const [vessels, setVessels] = createSignal<Vessel[]>([]);
+  const [loading, setLoading] = createSignal(true);
+
+  const loadVessels = async () => {
+    setLoading(true);
+    // Load first page immediately for fast render
+    const first = await vesselsApi.list({ page: '1', page_size: '200' });
+    const firstData = first.data;
+    const firstResults = (firstData?.results ?? firstData) as Vessel[];
+    setVessels(firstResults);
+    setLoading(false);
+    // Then load remaining pages in background
+    if (firstData?.next) {
+      let page = 2;
+      while (true) {
+        const r = await vesselsApi.list({ page: String(page), page_size: '200' });
+        const data = r.data;
+        const results = (data?.results ?? data) as Vessel[];
+        setVessels(v => [...v, ...results]);
+        if (!data?.next || results.length < 200) break;
+        page++;
+      }
     }
-    return allVessels;
-  });
+  };
+
+  onMount(() => loadVessels());
+
+  const refetch = () => loadVessels();
 
   // Manual refresh only — no auto-polling to avoid constant loading
 
   return (
     <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
-      <Header title="Fleet" subtitle={`Vessel registry and real-time status · ${vessels()?.length ?? 0} vessels`} />
+      <Header title="Fleet" subtitle={`Vessel registry and real-time status · ${vessels().length} vessels`} />
       <div class="page-content fade-in">
         <div class="card">
           <div style={{ display:'flex', 'justify-content':'flex-end', 'margin-bottom':'12px' }}>
@@ -119,17 +133,17 @@ export const Fleet: Component = () => {
               ↻ Refresh
             </button>
           </div>
-          <Show when={vessels.loading}>
+          <Show when={loading()}>
             <div style={{ display:'flex', 'justify-content':'center', padding:'60px' }}><div class="spinner"/></div>
           </Show>
-          <Show when={!vessels.loading && vessels()}>
+          <Show when={!loading() && vessels().length > 0}>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr><th>Name</th><th>MMSI</th><th>Type</th><th>Flag</th><th>Last Position</th><th>Speed</th><th>Status</th></tr>
                 </thead>
                 <tbody>
-                  <For each={vessels()!}>
+                  <For each={vessels()}>
                     {(v: Vessel) => {
                       const pos = v.latest_position as any;
                       const lat = pos?.latitude ?? pos?.lat;
