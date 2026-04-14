@@ -4,7 +4,10 @@ import environ
 
 env = environ.Env(DEBUG=(bool, False))
 BASE_DIR = Path(__file__).resolve().parent.parent
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+# Read .env file if it exists (local dev), but always prefer real env vars (Docker)
+_env_file = os.path.join(BASE_DIR, '.env')
+if os.path.exists(_env_file):
+    environ.Env.read_env(_env_file, overwrite=False)
 
 SECRET_KEY = env('SECRET_KEY', default='dev-secret-key-change-in-production-xyz123')
 DEBUG = env('DEBUG', default=True)
