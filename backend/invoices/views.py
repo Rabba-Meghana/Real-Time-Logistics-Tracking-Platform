@@ -13,10 +13,16 @@ from .tasks import validate_invoice
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
-    queryset = Invoice.objects.select_related('voyage')
     serializer_class = InvoiceSerializer
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_queryset(self):
+        qs = Invoice.objects.select_related('voyage').order_by('-uploaded_at')
+        status_filter = self.request.query_params.get('validation_status')
+        if status_filter:
+            qs = qs.filter(validation_status=status_filter)
+        return qs
 
     def perform_create(self, serializer):
         instance = serializer.save(validation_status='pending')

@@ -5,7 +5,7 @@ import Dashboard from './pages/Dashboard';
 import LiveMap from './pages/LiveMap';
 import Voyages from './pages/Voyages';
 import Invoices from './pages/Invoices';
-import { Anomalies, Fleet } from './pages/Anomalies';
+import { Fleet } from './pages/Anomalies';
 import './styles/global.css';
 
 const savedTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'light' | 'dark') || 'light';
@@ -43,7 +43,6 @@ const App = () => (
     <Route path="/map" component={LiveMap} />
     <Route path="/voyages" component={Voyages} />
     <Route path="/invoices" component={Invoices} />
-    <Route path="/anomalies" component={Anomalies} />
     <Route path="/fleet" component={Fleet} />
   </Router>
 );

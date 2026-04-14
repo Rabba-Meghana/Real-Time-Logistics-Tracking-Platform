@@ -1,4 +1,4 @@
-import { Component, createResource, createSignal, For, Show } from 'solid-js';
+import { Component, createResource, createSignal, For, Show, onMount, onCleanup } from 'solid-js';
 import { vesselsApi } from '../api';
 import Header from '../components/Header';
 import type { AnomalyLog, Vessel } from '../types';
@@ -92,10 +92,16 @@ export const Anomalies: Component = () => {
 };
 
 export const Fleet: Component = () => {
-  const [vessels] = createResource(() => vesselsApi.list().then(r => {
+  const [vessels, { refetch }] = createResource(() => vesselsApi.list().then(r => {
     const data = r.data;
     return (data?.results ?? data) as Vessel[];
   }));
+
+  // Auto-refresh every 30s to show live position updates
+  onMount(() => {
+    const interval = setInterval(() => refetch(), 30000);
+    onCleanup(() => clearInterval(interval));
+  });
 
   return (
     <div style={{ display:'flex', 'flex-direction':'column', height:'100%' }}>
