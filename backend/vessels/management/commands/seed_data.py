@@ -163,8 +163,8 @@ class Command(BaseCommand):
     def _seed_vessels(self, count):
         from vessels.models import Vessel
         Vessel.objects.all().delete()
-        vessel_types = ['barge', 'barge', 'barge', 'cargo', 'cargo', 'tanker', 'tug', 'other']
-        flags = ['US', 'US', 'US', 'US', 'PA', 'MH', 'BS']
+        vessel_types = ['barge', 'barge', 'barge', 'barge', 'barge', 'cargo', 'tanker', 'tug']
+        flags = ['US', 'US', 'US', 'US', 'US', 'US', 'US']
         vessels = []
         used_mmsis = set()
         for i in range(count):

@@ -54,7 +54,7 @@ def _simulate_ais_feed(mmsi_list: List[str]) -> List[Dict]:
             }
 
         speed_delta = random.gauss(0, 0.3)
-        state['speed'] = max(0.5, min(18.0, state['speed'] + speed_delta))
+        state['speed'] = max(0.5, min(8.5, state['speed'] + speed_delta))
 
         course_delta = random.gauss(0, state['heading_drift'])
         state['course'] = (state['course'] + course_delta) % 360
@@ -97,7 +97,7 @@ def _validate_position(pos: Dict) -> Optional[str]:
     if lat == 0 and lon == 0:
         return 'null_island'
     speed = pos.get('speed_over_ground', 0)
-    if speed > 35:
+    if speed > 20:
         return 'impossible_speed'
     ts_str = pos.get('timestamp')
     if ts_str:

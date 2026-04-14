@@ -31,7 +31,12 @@ class VesselSerializer(serializers.ModelSerializer):
         cached = cache.get(cache_key)
         if cached:
             try:
-                return json.loads(cached)
+                data = json.loads(cached)
+                # Normalize to always have latitude/longitude keys
+                if 'lat' in data and 'latitude' not in data:
+                    data['latitude'] = data['lat']
+                    data['longitude'] = data['lon']
+                return data
             except Exception:
                 pass
         pos = obj.positions.order_by('-timestamp').first()

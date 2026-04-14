@@ -3,182 +3,179 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { vesselStore } from '../stores/vesselStore';
 import Header from '../components/Header';
-import { config } from '../config';
 import type { LivePosition } from '../types';
 import { format } from 'date-fns';
+import { vesselsApi } from '../api';
 
 const VESSEL_COLORS: Record<string, string> = {
-  barge: '#f59e0b',
-  cargo: '#3b82f6',
-  tanker: '#10b981',
-  tug: '#8b5cf6',
-  passenger: '#ec4899',
+  barge: '#d97706',
+  cargo: '#2563eb',
+  tanker: '#059669',
+  tug: '#7c3aed',
+  passenger: '#db2777',
   other: '#6b7280',
 };
 
 function makeIcon(type: string, selected = false) {
   const color = VESSEL_COLORS[type] ?? '#6b7280';
-  const size = selected ? 18 : 13;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" fill="${color}" opacity="${selected ? 1 : 0.85}" stroke="white" stroke-width="${selected ? 3 : 2}"/>
-    ${selected ? `<circle cx="12" cy="12" r="5" fill="white" opacity="0.5"/>` : ''}
+  const s = selected ? 16 : 11;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" fill="${color}" opacity="${selected ? 1 : 0.9}" stroke="white" stroke-width="${selected ? 3 : 2.5}"/>
+    ${selected ? '<circle cx="12" cy="12" r="4" fill="white" opacity="0.6"/>' : ''}
   </svg>`;
-  return L.divIcon({
-    html: svg, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
-  });
+  return L.divIcon({ html: svg, className: '', iconSize: [s, s], iconAnchor: [s / 2, s / 2] });
 }
 
 const LiveMap: Component = () => {
   let mapContainer: HTMLDivElement | undefined;
   let map: L.Map | undefined;
   const markers = new Map<string, L.Marker>();
-  const [selectedVessel, setSelectedVessel] = createSignal<LivePosition | null>(null);
+  const [selected, setSelected] = createSignal<LivePosition | null>(null);
   const [filter, setFilter] = createSignal<string>('all');
+  const [positionCount, setPositionCount] = createSignal(0);
 
   onMount(() => {
     if (!mapContainer) return;
+
     map = L.map(mapContainer, {
-      center: [config.defaultMapCenter.lat, config.defaultMapCenter.lon],
-      zoom: config.defaultMapZoom,
+      center: [38.5, -90.0],
+      zoom: 5,
       zoomControl: true,
+      preferCanvas: true, // Fix zoom jitter
     });
 
-    L.tileLayer(config.mapTileUrl, {
-      attribution: config.mapTileAttribution,
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 18,
     }).addTo(map);
 
+    // Load initial positions from REST API immediately
+    loadInitialPositions();
+
+    // Then connect WebSocket for live updates
     vesselStore.connect();
   });
 
-  onCleanup(() => {
-    map?.remove();
-  });
+  const loadInitialPositions = async () => {
+    try {
+      const res = await vesselsApi.livePositions();
+      const positions: LivePosition[] = res.data;
+      setPositionCount(positions.length);
+      for (const pos of positions) {
+        updateMarker(pos);
+      }
+    } catch (e) {
+      console.error('Failed to load initial positions', e);
+    }
+  };
 
+  const updateMarker = (pos: LivePosition) => {
+    if (!map) return;
+    const currentFilter = filter();
+    if (currentFilter !== 'all' && pos.vessel_type !== currentFilter) {
+      if (markers.has(pos.vessel_id)) {
+        markers.get(pos.vessel_id)!.remove();
+        markers.delete(pos.vessel_id);
+      }
+      return;
+    }
+    const isSelected = selected()?.vessel_id === pos.vessel_id;
+    const icon = makeIcon(pos.vessel_type, isSelected);
+    if (markers.has(pos.vessel_id)) {
+      markers.get(pos.vessel_id)!.setLatLng([pos.lat, pos.lon]).setIcon(icon);
+    } else {
+      const m = L.marker([pos.lat, pos.lon], { icon })
+        .addTo(map!)
+        .on('click', () => setSelected(pos));
+      markers.set(pos.vessel_id, m);
+    }
+  };
+
+  // Update markers when WebSocket pushes new positions
   createEffect(() => {
     const positions = vesselStore.positionList();
-    if (!map) return;
-
-    const currentType = filter();
-
+    if (positions.length === 0) return;
+    setPositionCount(positions.length);
     for (const pos of positions) {
-      if (currentType !== 'all' && pos.vessel_type !== currentType) {
-        if (markers.has(pos.vessel_id)) {
-          markers.get(pos.vessel_id)!.remove();
-          markers.delete(pos.vessel_id);
-        }
-        continue;
-      }
-
-      const isSelected = selectedVessel()?.vessel_id === pos.vessel_id;
-      const icon = makeIcon(pos.vessel_type, isSelected);
-
-      if (markers.has(pos.vessel_id)) {
-        const marker = markers.get(pos.vessel_id)!;
-        marker.setLatLng([pos.lat, pos.lon]);
-        marker.setIcon(icon);
-      } else {
-        const marker = L.marker([pos.lat, pos.lon], { icon })
-          .addTo(map!)
-          .on('click', () => setSelectedVessel(pos));
-        markers.set(pos.vessel_id, marker);
-      }
+      updateMarker(pos);
     }
+  });
 
-    // Remove stale markers
-    for (const [id] of markers) {
-      if (!positions.find(p => p.vessel_id === id)) {
-        markers.get(id)!.remove();
+  // Refilter on filter change
+  createEffect(() => {
+    const currentFilter = filter();
+    for (const [id, marker] of markers) {
+      const pos = vesselStore.positions[id];
+      if (pos && currentFilter !== 'all' && pos.vessel_type !== currentFilter) {
+        marker.remove();
         markers.delete(id);
       }
     }
   });
 
+  onCleanup(() => { map?.remove(); });
+
   const vesselTypes = () => {
-    const types = new Set(vesselStore.positionList().map(p => p.vessel_type));
+    const types = new Set<string>();
+    for (const p of vesselStore.positionList()) types.add(p.vessel_type);
     return ['all', ...types];
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', 'flex-direction': 'column', height: '100%' }}>
       <Header title="Live Map" subtitle="Real-time AIS vessel position feed" />
       <div style={{ flex: '1', display: 'flex', position: 'relative', overflow: 'hidden' }}>
-
-        {/* Map */}
         <div ref={mapContainer!} style={{ flex: '1', height: '100%' }} />
 
-        {/* Controls overlay */}
-        <div style={controlsPanel}>
-          <div style={{ marginBottom: '12px' }}>
-            <div style={controlLabel}>Filter by type</div>
-            <select
-              class="input"
-              style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-              value={filter()}
-              onChange={(e) => setFilter(e.currentTarget.value)}
-            >
-              {vesselTypes().map(t => (
-                <option value={t}>{t === 'all' ? 'All vessels' : t.charAt(0).toUpperCase() + t.slice(1)}</option>
-              ))}
-            </select>
-          </div>
+        {/* Controls */}
+        <div style={{ position: 'absolute', top: '14px', right: '14px', 'z-index': '1000', background: 'var(--bg-overlay)', 'backdrop-filter': 'blur(12px)', border: '1px solid var(--border)', 'border-radius': 'var(--radius-lg)', padding: '14px', width: '170px', 'box-shadow': 'var(--shadow-md)' }}>
+          <div style={{ 'font-size': '0.65rem', 'text-transform': 'uppercase', 'letter-spacing': '0.08em', color: 'var(--text-muted)', 'margin-bottom': '6px', 'font-weight': '600' }}>Filter type</div>
+          <select class="input" style={{ 'font-size': '0.78rem', padding: '5px 8px', 'margin-bottom': '12px' }} value={filter()} onChange={e => setFilter(e.currentTarget.value)}>
+            {vesselTypes().map(t => <option value={t}>{t === 'all' ? 'All vessels' : t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+          </select>
 
-          <div style={legendWrap}>
+          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '4px', 'margin-bottom': '12px' }}>
             {Object.entries(VESSEL_COLORS).map(([type, color]) => (
-              <div style={legendItem}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, display: 'inline-block', flexShrink: '0' }} />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{type}</span>
+              <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
+                <span style={{ width: '9px', height: '9px', 'border-radius': '50%', background: color, display: 'inline-block', 'flex-shrink': '0' }} />
+                <span style={{ 'font-size': '0.72rem', color: 'var(--text-secondary)', 'text-transform': 'capitalize' }}>{type}</span>
               </div>
             ))}
           </div>
 
-          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-            <div style={controlLabel}>Visible</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--accent)' }}>
-              {vesselStore.positionList().filter(p => filter() === 'all' || p.vessel_type === filter()).length}
+          <div style={{ 'padding-top': '10px', 'border-top': '1px solid var(--border)' }}>
+            <div style={{ 'font-size': '0.65rem', color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '0.06em' }}>Vessels on map</div>
+            <div style={{ 'font-family': 'var(--font-display)', 'font-size': '1.6rem', color: 'var(--accent)' }}>{positionCount()}</div>
+            <div style={{ 'font-size': '0.68rem', color: 'var(--text-muted)' }}>
+              WS: <span style={{ color: vesselStore.wsStatus() === 'connected' ? 'var(--status-active)' : 'var(--text-muted)' }}>{vesselStore.wsStatus()}</span>
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>vessels on map</div>
           </div>
         </div>
 
-        {/* Selected vessel panel */}
-        {selectedVessel() && (
-          <div style={vesselPanel} class="fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+        {/* Vessel detail panel */}
+        {selected() && (
+          <div style={{ position: 'absolute', bottom: '20px', left: '20px', 'z-index': '1000', background: 'var(--bg-overlay)', 'backdrop-filter': 'blur(12px)', border: '1px solid var(--border)', 'border-radius': 'var(--radius-lg)', padding: '16px', width: '255px', 'box-shadow': 'var(--shadow-lg)' }} class="fade-in">
+            <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'flex-start', 'margin-bottom': '10px' }}>
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>{selectedVessel()!.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>MMSI: {selectedVessel()!.mmsi}</div>
+                <div style={{ 'font-family': 'var(--font-display)', 'font-size': '1.05rem' }}>{selected()!.name}</div>
+                <div style={{ 'font-size': '0.72rem', color: 'var(--text-muted)' }}>MMSI: {selected()!.mmsi}</div>
               </div>
-              <button
-                onClick={() => setSelectedVessel(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: '1' }}
-              >×</button>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', 'font-size': '1.1rem' }}>×</button>
             </div>
-
-            <span class={`badge badge-${selectedVessel()!.vessel_type === 'barge' ? 'active' : 'planned'}`} style={{ marginBottom: '12px', display: 'inline-block' }}>
-              {selectedVessel()!.vessel_type}
-            </span>
-
+            <span class={`badge badge-${selected()!.vessel_type}`} style={{ 'margin-bottom': '10px', display: 'inline-block' }}>{selected()!.vessel_type}</span>
             {[
-              ['Position', `${selectedVessel()!.lat.toFixed(4)}°N, ${Math.abs(selectedVessel()!.lon).toFixed(4)}°W`],
-              ['Speed', `${selectedVessel()!.speed.toFixed(1)} knots`],
-              ['Course', `${selectedVessel()!.course.toFixed(0)}°`],
-              ['Updated', format(new Date(selectedVessel()!.timestamp), 'HH:mm:ss')],
+              ['Position', `${selected()!.lat.toFixed(4)}°N, ${Math.abs(selected()!.lon).toFixed(4)}°W`],
+              ['Speed', `${selected()!.speed.toFixed(1)} knots`],
+              ['Course', `${selected()!.course.toFixed(0)}°`],
+              ['Updated', format(new Date(selected()!.timestamp), 'HH:mm:ss')],
             ].map(([label, val]) => (
-              <div style={detailRow}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-                <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{val}</span>
+              <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', padding: '4px 0', 'border-bottom': '1px solid var(--border)' }}>
+                <span style={{ 'font-size': '0.70rem', color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '0.05em' }}>{label}</span>
+                <span style={{ 'font-size': '0.82rem', color: 'var(--text-primary)', 'font-family': 'var(--font-mono)' }}>{val}</span>
               </div>
             ))}
-
-            <button
-              class="btn btn-primary btn-sm"
-              style={{ marginTop: '12px', width: '100%', justifyContent: 'center' }}
-              onClick={() => {
-                const pos = selectedVessel()!;
-                map?.flyTo([pos.lat, pos.lon], 10, { duration: 1.5 });
-              }}
-            >
+            <button class="btn btn-primary btn-sm" style={{ 'margin-top': '10px', width: '100%', 'justify-content': 'center' }}
+              onClick={() => map?.flyTo([selected()!.lat, selected()!.lon], 10, { duration: 1.2 })}>
               Center on vessel
             </button>
           </div>
@@ -186,33 +183,6 @@ const LiveMap: Component = () => {
       </div>
     </div>
   );
-};
-
-const controlsPanel: Record<string, string> = {
-  position: 'absolute', top: '16px', right: '16px', zIndex: '1000',
-  background: 'var(--bg-overlay)', backdropFilter: 'blur(12px)',
-  border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-  padding: '16px', width: '180px', boxShadow: 'var(--shadow-md)',
-};
-const controlLabel: Record<string, string> = {
-  fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.08em',
-  color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600',
-};
-const legendWrap: Record<string, string> = {
-  display: 'flex', flexDirection: 'column', gap: '5px',
-};
-const legendItem: Record<string, string> = {
-  display: 'flex', alignItems: 'center', gap: '7px',
-};
-const vesselPanel: Record<string, string> = {
-  position: 'absolute', bottom: '24px', left: '24px', zIndex: '1000',
-  background: 'var(--bg-overlay)', backdropFilter: 'blur(12px)',
-  border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-  padding: '18px', width: '260px', boxShadow: 'var(--shadow-lg)',
-};
-const detailRow: Record<string, string> = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '5px 0', borderBottom: '1px solid var(--border)',
 };
 
 export default LiveMap;
